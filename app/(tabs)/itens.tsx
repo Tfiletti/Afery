@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../src/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../../src/context/AuthContext'; // <-- Importado para o multi-tenant
 
-const HeaderItens = ({ title, topInset }) => {
+const HeaderItens = ({ title, topInset }: { title: string, topInset: number }) => {
   const router = useRouter();
   return (
     <View style={[styles.header, { paddingTop: topInset + 15 }]}>
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Ionicons name="arrow-back" size={24} color="#1F2937" />
+        <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>{title}</Text>
       <View style={{ width: 40 }} />
@@ -22,34 +23,51 @@ export default function TelaDeItens() {
   const { familiaId, familiaNome } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { organizacao_id } = useAuth(); // <-- Puxando a organização
   
-  const [itens, setItens] = useState([]);
+  const [itens, setItens] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
   
   const [busca, setBusca] = useState('');
 
+  // Limpando os parâmetros do Expo Router (garante que seja uma string limpa)
+  const idDaFamilia = Array.isArray(familiaId) ? familiaId[0] : familiaId;
+  const nomeDaFamilia = Array.isArray(familiaNome) ? familiaNome[0] : familiaNome;
+
   useEffect(() => {
     async function buscarItens() {
-      if (!familiaId) return; 
+      if (!idDaFamilia || !organizacao_id) {
+        setCarregando(false);
+        return; 
+      }
       
-      const { data, error } = await supabase
-        .from('itens')
-        .select('*')
-        .eq('familia_id', familiaId)
-        .order('descricao');
-        
-      if (data) setItens(data);
-      setCarregando(false);
+      try {
+        const { data, error } = await supabase
+          .from('itens')
+          .select('*')
+          .eq('organizacao_id', organizacao_id) // <-- Segurança do SaaS ativada
+          .eq('familia_id', idDaFamilia) // <-- Busca pela família
+          .order('descricao');
+          
+        if (error) throw error;
+        if (data) setItens(data);
+      } catch (error: any) {
+        console.error("Erro ao buscar itens da família:", error);
+        Alert.alert("Erro", "Não foi possível carregar os itens desta família.");
+      } finally {
+        setCarregando(false);
+      }
     }
+    
     buscarItens();
-  }, [familiaId]);
+  }, [idDaFamilia, organizacao_id]);
 
-  const irParaContagem = (item) => {
+  const irParaContagem = (item: any) => {
     router.push({ 
       pathname: '/contar', 
       params: { 
         itemId: item.id, 
-        codigo: item.sku_codigo, // <-- Atualizado para o novo nome do banco
+        codigo: item.sku_codigo, 
         descricao: item.descricao,
       } 
     });
@@ -59,7 +77,6 @@ export default function TelaDeItens() {
     if (busca === '') return true;
     
     const termoBusca = busca.toLowerCase();
-    // <-- Atualizado para o novo nome da coluna
     const codSistema = item.sku_codigo?.toLowerCase() || ''; 
     const desc = item.descricao?.toLowerCase() || '';
     
@@ -70,7 +87,7 @@ export default function TelaDeItens() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <HeaderItens 
-        title={familiaNome || 'Materiais'} 
+        title={nomeDaFamilia || 'Materiais'} 
         topInset={insets.top} 
       />
       
@@ -81,7 +98,7 @@ export default function TelaDeItens() {
         </View>
 
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#94A3B8" />
+          <Ionicons name="search" size={18} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar por código ou descrição..."
@@ -91,19 +108,20 @@ export default function TelaDeItens() {
             autoCorrect={false}
           />
           {busca.length > 0 && (
-            <TouchableOpacity onPress={() => setBusca('')}>
-              <Ionicons name="close-circle" size={20} color="#CBD5E1" />
+            <TouchableOpacity onPress={() => setBusca('')} style={{ padding: 4 }}>
+              <Ionicons name="close-circle" size={18} color="#CBD5E1" />
             </TouchableOpacity>
           )}
         </View>
 
         {carregando ? (
-          <ActivityIndicator size="large" color="#005b9f" style={{ marginTop: 50 }} />
+          <ActivityIndicator size="large" color="#1E3A8A" style={{ marginTop: 50 }} />
         ) : (
           <FlatList
             data={itensFiltrados}
             keyExtractor={(item: any) => item.id.toString()}
-            contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
             renderItem={({ item }) => (
               <TouchableOpacity 
                 style={styles.cardItem} 
@@ -111,20 +129,19 @@ export default function TelaDeItens() {
                 activeOpacity={0.7}
               >
                 <View style={styles.cardItemBody}>
-                  {/* <-- Atualizado para exibir o sku_codigo e usar o novo estilo */}
                   <Text style={styles.codigoSistema}>{item.sku_codigo}</Text>
                   <Text style={styles.descricao} numberOfLines={2}>{item.descricao}</Text>
                 </View>
                 <View style={styles.iconContainer}>
-                    <Ionicons name="chevron-forward" size={20} color="#005b9f" />
+                    <Ionicons name="chevron-forward" size={18} color="#E6A23C" />
                 </View>
               </TouchableOpacity>
             )}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="search-outline" size={40} color="#CBD5E1" />
+                <Ionicons name="cube-outline" size={36} color="#CBD5E1" />
                 <Text style={styles.emptyText}>
-                    {busca ? "Nenhum material encontrado." : `Nenhum material cadastrado em ${familiaNome}.`}
+                    {busca ? "Nenhum material encontrado." : `Nenhum material cadastrado nesta família.`}
                 </Text>
               </View>
             }
@@ -136,77 +153,87 @@ export default function TelaDeItens() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  
+  /* --- Cabeçalho --- */
   header: { 
     backgroundColor: '#FFFFFF', 
-    paddingBottom: 15, 
+    paddingBottom: 12, 
     paddingHorizontal: 15, 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
-    elevation: 4,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0'
   },
   backBtn: { padding: 5 },
-  headerTitle: { fontSize: 18, color: '#1F2937', fontWeight: 'bold' },
+  headerTitle: { fontSize: 16, color: '#1E3A8A', fontWeight: '900', textTransform: 'uppercase' },
+  
   content: { flex: 1, paddingHorizontal: 20 },
+  
   subHeader: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     marginTop: 15,
     marginBottom: 10,
     backgroundColor: '#E2E8F0',
-    padding: 8,
-    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
     alignSelf: 'flex-start'
   },
-  subtitle: { fontSize: 13, color: '#475569', fontWeight: 'bold' },
+  subtitle: { fontSize: 11, color: '#475569', fontWeight: 'bold', textTransform: 'uppercase' },
   
+  /* --- Barra de Pesquisa Compacta --- */
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     paddingHorizontal: 12,
     marginBottom: 15,
-    height: 45,
+    height: 42,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
     fontSize: 14,
     color: '#1E293B',
     fontWeight: '500',
   },
 
+  /* --- Cartões Secos e Operacionais --- */
   cardItem: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     backgroundColor: '#FFFFFF', 
-    padding: 20, 
-    borderRadius: 16, 
-    marginBottom: 12, 
-    elevation: 3, 
-    borderLeftWidth: 6, 
-    borderLeftColor: '#005b9f',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    padding: 14, // Reduzido (era 20)
+    borderRadius: 10, // Reduzido (era 16)
+    marginBottom: 10, // Reduzido (era 12)
+    elevation: 1, 
+    borderLeftWidth: 5, 
+    borderLeftColor: '#1E3A8A', // Azul SmartCount
+    borderWidth: 1,
+    borderColor: '#F3F4F6'
   },
   cardItemBody: { flex: 1 },
-  // <-- Estilo renomeado para manter a coerência
-  codigoSistema: { fontSize: 20, fontWeight: 'bold', color: '#005b9f' },
-  descricao: { fontSize: 14, color: '#64748B', marginTop: 4, textTransform: 'uppercase' },
+  codigoSistema: { fontSize: 16, fontWeight: '900', color: '#1E3A8A' }, // Reduzido (era 20)
+  descricao: { fontSize: 12, color: '#64748B', marginTop: 2, textTransform: 'uppercase' }, // Reduzido (era 14)
   iconContainer: {
-    backgroundColor: '#F0F9FF',
-    padding: 8,
-    borderRadius: 10,
+    backgroundColor: '#FFFBEB', // Fundo levemente amarelado
+    padding: 6,
+    borderRadius: 8,
     marginLeft: 10
   },
-  emptyContainer: { alignItems: 'center', marginTop: 80 },
-  emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 16 }
+  
+  emptyContainer: { alignItems: 'center', marginTop: 60 },
+  emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 14 }
 });

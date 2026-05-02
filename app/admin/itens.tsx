@@ -214,6 +214,33 @@ export default function ItensAdminScreen() {
     ]);
   };
 
+  // NOVA FUNÇÃO: Excluir a Capa do Item por completo
+  const handleExcluirItem = (id: string, descricaoItem: string) => {
+    Alert.alert(
+      'Cuidado!',
+      `Tem certeza que deseja excluir o item:\n"${descricaoItem}"?\n\nTodas as regras de fornecedores atreladas a ele também poderão ser perdidas.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Sim, Excluir', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const { error } = await supabase.from('itens').delete().eq('id', id);
+              if (error) throw error;
+              carregarDadosBase(); // Recarrega a lista sem o item
+            } catch (e: any) {
+              Alert.alert('Erro', 'Não foi possível excluir o item. Ele já pode estar vinculado a algum inventário ou movimentação.');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleCriarFornecedorRapido = async () => {
     if (!novoFornecedor.trim()) return;
     setSalvandoNovoFornecedor(true);
@@ -244,7 +271,6 @@ export default function ItensAdminScreen() {
   });
 
   return (
-    // AJUSTE 1: A Mágica do Teclado. Adicionado 'height' para Android e offset!
     <KeyboardAvoidingView 
       style={{ flex: 1 }} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -260,7 +286,6 @@ export default function ItensAdminScreen() {
           </TouchableOpacity>
         )}
 
-        {/* AJUSTE 2: Padding Bottom gigante na hora de editar (passou de 150 para 350) */}
         <ScrollView 
           style={editandoId ? styles.formAreaExpanded : styles.formAreaCompact} 
           showsVerticalScrollIndicator={false}
@@ -407,6 +432,10 @@ export default function ItensAdminScreen() {
                       <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
                         <Ionicons name="settings-outline" size={16} color={COLORS.secondary} />
                       </TouchableOpacity>
+                      {/* NOVA LIXEIRINHA DE EXCLUSÃO */}
+                      <TouchableOpacity onPress={() => handleExcluirItem(item.id, item.descricao)} style={styles.deleteBtn}>
+                        <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 )}
@@ -481,6 +510,7 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 13, fontWeight: '500', color: COLORS.text },
   actionButtons: { flexDirection: 'row', gap: 6 },
   editBtn: { padding: 8, backgroundColor: '#E0F2FE', borderRadius: 6 },
+  deleteBtn: { padding: 8, backgroundColor: '#FEE2E2', borderRadius: 6 }, // Estilo da lixeirinha!
   
   btnNovoFornecedor: { backgroundColor: COLORS.success, height: 38, width: 45, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
   fatorMiniCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: '#D1FAE5', elevation: 1 },

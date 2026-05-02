@@ -24,7 +24,7 @@ const HeaderHome = ({ topInset }: { topInset: number }) => (
 export default function TelaInicial() {
   const [familias, setFamilias] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [busca, setBusca] = useState(''); // Estado da barra de pesquisa
+  const [busca, setBusca] = useState(''); 
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -50,7 +50,6 @@ export default function TelaInicial() {
     });
   };
 
-  // Filtro local da barra de pesquisa
   const familiasFiltradas = familias.filter((item: any) => {
     if (busca === '') return true;
     const termoBusca = busca.toLowerCase();
@@ -68,7 +67,7 @@ export default function TelaInicial() {
 
         {/* --- CAMPO DE PESQUISA --- */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#94A3B8" />
+          <Ionicons name="search" size={18} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar família..."
@@ -78,8 +77,8 @@ export default function TelaInicial() {
             autoCorrect={false}
           />
           {busca.length > 0 && (
-            <TouchableOpacity onPress={() => setBusca('')}>
-              <Ionicons name="close-circle" size={20} color="#CBD5E1" />
+            <TouchableOpacity onPress={() => setBusca('')} style={{ padding: 4 }}>
+              <Ionicons name="close-circle" size={18} color="#CBD5E1" />
             </TouchableOpacity>
           )}
         </View>
@@ -88,10 +87,11 @@ export default function TelaInicial() {
           <ActivityIndicator size="large" color="#005b9f" style={{ marginTop: 50 }} />
         ) : (
           <FlatList
-            data={familiasFiltradas} // Usa a lista filtrada
+            data={familiasFiltradas} 
             keyExtractor={(item: any) => item.id.toString()}
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={{ 
-              paddingBottom: insets.bottom + 120 
+              paddingBottom: insets.bottom + 160 // Aumentado para o FAB não tampar o último item!
             }}
             renderItem={({ item }) => (
               <TouchableOpacity 
@@ -101,7 +101,7 @@ export default function TelaInicial() {
               >
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTag}>Rótulos e Embalagens</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
                 </View>
                 <Text style={styles.cardTitle}>{item.nome}</Text>
                 <Text style={styles.cardDescription}>Materiais cadastrados para conferência</Text>
@@ -109,7 +109,7 @@ export default function TelaInicial() {
             )}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="search-outline" size={40} color="#CBD5E1" />
+                <Ionicons name="search-outline" size={36} color="#CBD5E1" />
                 <Text style={styles.emptyText}>
                     {busca ? "Nenhuma família encontrada." : "Nenhuma família cadastrada."}
                 </Text>
@@ -119,15 +119,14 @@ export default function TelaInicial() {
         )}
       </View>
 
-      {/* --- BOTÃO FLUTUANTE ADMIN (Canto Inferior Esquerdo) --- */}
+      {/* --- BOTÃO FLUTUANTE ADMIN --- */}
       {role === 'ADMIN' && (
         <TouchableOpacity 
-          // Ajustei o 'bottom' para 110, assim ele não fica "engolido" pela barra
-          style={[styles.fabAdmin, { bottom: insets.bottom + 110 }]} 
+          style={[styles.fabAdmin, { bottom: insets.bottom + 100 }]} // Subiu de 90 para 130 para desgrudar da barra
           onPress={() => router.push('/admin')} 
           activeOpacity={0.8}
         >
-          <Ionicons name="settings" size={26} color="#FFFFFF" />
+          <Ionicons name="settings" size={22} color="#FFFFFF" />
         </TouchableOpacity>
       )}
     </View>
@@ -138,77 +137,78 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: { 
     backgroundColor: '#FFFFFF', 
-    paddingBottom: 15, 
+    paddingBottom: 12, 
     paddingHorizontal: 20, 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
-    elevation: 4 
+    elevation: 3 
   },
   logoContainer: { flexDirection: 'row', alignItems: 'center' },
-  logoSC: { width: 36, height: 36, backgroundColor: '#F59E0B', borderRadius: 4, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  logoSCText: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold' },
-  logoSmart: { color: '#F59E0B', fontSize: 18, fontWeight: 'bold', lineHeight: 20 },
-  logoCount: { color: '#1F2937', fontSize: 14, fontWeight: 'bold', letterSpacing: 1.2 },
+  logoSC: { width: 32, height: 32, backgroundColor: '#F59E0B', borderRadius: 4, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  logoSCText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  logoSmart: { color: '#F59E0B', fontSize: 16, fontWeight: 'bold', lineHeight: 18 },
+  logoCount: { color: '#1F2937', fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
   headerTitleContainer: { flex: 1, alignItems: 'flex-end' },
-  headerTitle: { fontSize: 12, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
-  sectionTitle: { fontSize: 20, color: '#111827', fontWeight: 'bold', marginBottom: 15 },
+  headerTitle: { fontSize: 10, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 15 },
+  sectionTitle: { fontSize: 16, color: '#111827', fontWeight: 'bold', marginBottom: 12 },
   
-  // Estilos da Barra de Pesquisa
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF', // Fundo branco para destacar no cinza
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 8,
     paddingHorizontal: 12,
-    marginBottom: 20,
-    height: 50,
-    elevation: 2,
+    marginBottom: 15,
+    height: 42,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
+    marginLeft: 8,
+    fontSize: 14,
     color: '#1E293B',
-    fontWeight: '500',
   },
 
   cardFamilias: { 
     backgroundColor: '#FFFFFF', 
-    padding: 20, 
-    borderRadius: 16, 
-    marginBottom: 16, 
-    elevation: 3, 
-    borderLeftWidth: 6, 
-    borderLeftColor: '#F59E0B' 
+    padding: 14, 
+    borderRadius: 10, 
+    marginBottom: 10, 
+    elevation: 1, 
+    borderLeftWidth: 5, 
+    borderLeftColor: '#F59E0B',
+    borderWidth: 1,
+    borderColor: '#F3F4F6'
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  cardTag: { fontSize: 11, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
-  cardTitle: { fontSize: 24, fontWeight: 'bold', color: '#1F2937' },
-  cardDescription: { fontSize: 14, color: '#6B7280', marginTop: 4 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  cardTag: { fontSize: 10, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
+  cardDescription: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   
-  emptyContainer: { alignItems: 'center', marginTop: 50 },
-  emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 16 },
+  emptyContainer: { alignItems: 'center', marginTop: 40 },
+  emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 14 },
 
-  // --- ESTILOS DO FAB ADMIN ---
   fabAdmin: {
     position: 'absolute',
-    left: 20, // Canto Esquerdo
-    backgroundColor: '#1E3A8A', // Azul Tech
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    left: 20, 
+    backgroundColor: '#1E3A8A', 
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 6, // Sombra no Android
-    shadowColor: '#000', // Sombra no iOS
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    elevation: 5, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
 });
