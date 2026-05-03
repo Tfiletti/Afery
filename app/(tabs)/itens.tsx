@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../src/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../src/context/AuthContext'; // <-- Importado para o multi-tenant
+import { useAuth } from '../../src/context/AuthContext'; 
 
 const HeaderItens = ({ title, topInset }: { title: string, topInset: number }) => {
   const router = useRouter();
@@ -23,14 +23,12 @@ export default function TelaDeItens() {
   const { familiaId, familiaNome } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { organizacao_id } = useAuth(); // <-- Puxando a organização
+  const { organizacao_id } = useAuth(); 
   
   const [itens, setItens] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
-  
   const [busca, setBusca] = useState('');
 
-  // Limpando os parâmetros do Expo Router (garante que seja uma string limpa)
   const idDaFamilia = Array.isArray(familiaId) ? familiaId[0] : familiaId;
   const nomeDaFamilia = Array.isArray(familiaNome) ? familiaNome[0] : familiaNome;
 
@@ -45,8 +43,8 @@ export default function TelaDeItens() {
         const { data, error } = await supabase
           .from('itens')
           .select('*')
-          .eq('organizacao_id', organizacao_id) // <-- Segurança do SaaS ativada
-          .eq('familia_id', idDaFamilia) // <-- Busca pela família
+          .eq('organizacao_id', organizacao_id)
+          .eq('familia_id', idDaFamilia)
           .order('descricao');
           
         if (error) throw error;
@@ -75,11 +73,9 @@ export default function TelaDeItens() {
 
   const itensFiltrados = itens.filter((item: any) => {
     if (busca === '') return true;
-    
     const termoBusca = busca.toLowerCase();
     const codSistema = item.sku_codigo?.toLowerCase() || ''; 
     const desc = item.descricao?.toLowerCase() || '';
-    
     return codSistema.includes(termoBusca) || desc.includes(termoBusca);
   });
 
@@ -93,10 +89,11 @@ export default function TelaDeItens() {
       
       <View style={styles.content}>
         <View style={styles.subHeader}>
-            <Ionicons name="pricetags-outline" size={16} color="#6B7280" />
+            <Ionicons name="pricetags-outline" size={14} color="#475569" />
             <Text style={styles.subtitle}> Selecione o item abaixo:</Text>
         </View>
 
+        {/* BARRA DE PESQUISA - COR DO TEXTO FIXADA */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={18} color="#94A3B8" />
           <TextInput
@@ -106,6 +103,7 @@ export default function TelaDeItens() {
             value={busca}
             onChangeText={setBusca}
             autoCorrect={false}
+            autoCapitalize="none"
           />
           {busca.length > 0 && (
             <TouchableOpacity onPress={() => setBusca('')} style={{ padding: 4 }}>
@@ -155,7 +153,6 @@ export default function TelaDeItens() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   
-  /* --- Cabeçalho --- */
   header: { 
     backgroundColor: '#FFFFFF', 
     paddingBottom: 12, 
@@ -164,15 +161,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     justifyContent: 'space-between', 
     elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0'
   },
   backBtn: { padding: 5 },
-  headerTitle: { fontSize: 16, color: '#1E3A8A', fontWeight: '900', textTransform: 'uppercase' },
+  headerTitle: { fontSize: 15, color: '#1E3A8A', fontWeight: '900', textTransform: 'uppercase' },
   
   content: { flex: 1, paddingHorizontal: 20 },
   
@@ -182,53 +175,63 @@ const styles = StyleSheet.create({
     marginTop: 15,
     marginBottom: 10,
     backgroundColor: '#E2E8F0',
-    paddingVertical: 6,
+    paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 6,
     alignSelf: 'flex-start'
   },
-  subtitle: { fontSize: 11, color: '#475569', fontWeight: 'bold', textTransform: 'uppercase' },
+  subtitle: { fontSize: 10, color: '#475569', fontWeight: 'bold', textTransform: 'uppercase' },
   
-  /* --- Barra de Pesquisa Compacta --- */
+  /* --- BARRA DE PESQUISA BLINDADA --- */
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF', // Fundo sempre branco
     borderRadius: 8,
     paddingHorizontal: 12,
     marginBottom: 15,
-    height: 42,
-    elevation: 1,
+    height: 48, // Altura confortável para o dedo
+    elevation: 2,
     borderWidth: 1,
     borderColor: '#E5E7EB'
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
-    fontSize: 14,
-    color: '#1E293B',
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#1E293B', // TEXTO SEMPRE ESCURO (AZUL QUASE PRETO)
+    fontWeight: '600', // Texto levemente mais grosso para facilitar leitura
   },
 
-  /* --- Cartões Secos e Operacionais --- */
+  /* --- CARTÕES --- */
   cardItem: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#FFFFFF', 
-    padding: 14, // Reduzido (era 20)
-    borderRadius: 10, // Reduzido (era 16)
-    marginBottom: 10, // Reduzido (era 12)
+    backgroundColor: '#FFFFFF', // Fundo sempre branco
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 10,
     elevation: 1, 
     borderLeftWidth: 5, 
-    borderLeftColor: '#1E3A8A', // Azul SmartCount
+    borderLeftColor: '#1E3A8A', 
     borderWidth: 1,
     borderColor: '#F3F4F6'
   },
   cardItemBody: { flex: 1 },
-  codigoSistema: { fontSize: 16, fontWeight: '900', color: '#1E3A8A' }, // Reduzido (era 20)
-  descricao: { fontSize: 12, color: '#64748B', marginTop: 2, textTransform: 'uppercase' }, // Reduzido (era 14)
+  codigoSistema: { 
+    fontSize: 16, 
+    fontWeight: '900', 
+    color: '#1E3A8A' // Texto do SKU sempre visível
+  },
+  descricao: { 
+    fontSize: 11, 
+    color: '#64748B', 
+    marginTop: 2, 
+    textTransform: 'uppercase',
+    fontWeight: '500' 
+  },
   iconContainer: {
-    backgroundColor: '#FFFBEB', // Fundo levemente amarelado
+    backgroundColor: '#FFFBEB',
     padding: 6,
     borderRadius: 8,
     marginLeft: 10

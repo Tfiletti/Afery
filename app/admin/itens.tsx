@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
-  FlatList, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, ScrollView
+  FlatList, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, ScrollView, StatusBar
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,7 @@ const COLORS = {
   secondary: '#1E3A8A', 
   success: '#10B981',
   danger: '#EF4444', 
-  text: '#1A202C', 
+  text: '#1A202C', // Cor do texto principal (Preto acinzentado)
   border: '#DDDDDD',
   white: '#FFFFFF',
   placeholder: '#94A3B8', 
@@ -26,7 +26,7 @@ const COLORS = {
 };
 
 export default function ItensAdminScreen() {
-  const { organizacao_id, role } = useAuth();
+  const { organizacao_id } = useAuth();
   const insets = useSafeAreaInsets(); 
   
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,7 @@ export default function ItensAdminScreen() {
       }
     } catch (e: any) {
       if (e.message.includes('unique constraint')) {
-        Alert.alert('Código Duplicado', 'Já existe um item com esse SKU/Código. Busque por ele na lista abaixo para editá-lo.');
+        Alert.alert('Código Duplicado', 'Já existe um item com esse SKU/Código.');
       } else {
         Alert.alert('Erro ao salvar item', e.message);
       }
@@ -207,18 +207,17 @@ export default function ItensAdminScreen() {
     Alert.alert('Atenção', 'Excluir esta regra de fornecedor?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir', style: 'destructive', onPress: async () => {
-          await supabase.from('item_fornecedor').delete().eq('id', fatorId);
+          await supabase.from('item_fornecedor').delete().eq('id', fartoId);
           if (editandoId) carregarFatoresDoItem(editandoId);
         }
       }
     ]);
   };
 
-  // NOVA FUNÇÃO: Excluir a Capa do Item por completo
   const handleExcluirItem = (id: string, descricaoItem: string) => {
     Alert.alert(
       'Cuidado!',
-      `Tem certeza que deseja excluir o item:\n"${descricaoItem}"?\n\nTodas as regras de fornecedores atreladas a ele também poderão ser perdidas.`,
+      `Tem certeza que deseja excluir o item:\n"${descricaoItem}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -229,9 +228,9 @@ export default function ItensAdminScreen() {
               setLoading(true);
               const { error } = await supabase.from('itens').delete().eq('id', id);
               if (error) throw error;
-              carregarDadosBase(); // Recarrega a lista sem o item
+              carregarDadosBase();
             } catch (e: any) {
-              Alert.alert('Erro', 'Não foi possível excluir o item. Ele já pode estar vinculado a algum inventário ou movimentação.');
+              Alert.alert('Erro', 'Não foi possível excluir o item.');
             } finally {
               setLoading(false);
             }
@@ -277,12 +276,13 @@ export default function ItensAdminScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
     >
       <View style={styles.container}>
-        <Stack.Screen options={{ title: editandoId ? 'Editando Engenharia' : 'Engenharia de Itens' }} />
+        <StatusBar barStyle="dark-content" />
+        <Stack.Screen options={{ title: editandoId ? 'Engenharia Detalhada' : 'Gestão de Itens' }} />
 
         {editandoId && (
           <TouchableOpacity onPress={fecharEdicao} style={styles.btnVoltarTop}>
             <Ionicons name="arrow-back" size={20} color="#FFF" />
-            <Text style={styles.btnVoltarText}>SALVAR TUDO E VOLTAR PARA A LISTA</Text>
+            <Text style={styles.btnVoltarText}>VOLTAR PARA A LISTA</Text>
           </TouchableOpacity>
         )}
 
@@ -290,153 +290,183 @@ export default function ItensAdminScreen() {
           style={editandoId ? styles.formAreaExpanded : styles.formAreaCompact} 
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled" 
-          contentContainerStyle={{ paddingBottom: editandoId ? 350 : 20 }}
+          contentContainerStyle={{ paddingBottom: editandoId ? 100 : 20 }}
         >
           {/* ================= CAPA ================= */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{editandoId ? '📦 Identidade do Item (Capa)' : '📦 Novo Item'}</Text>
+            <Text style={styles.cardTitle}>{editandoId ? '📝 Dados Principais' : '📦 Novo Item'}</Text>
             
             <View style={styles.row}>
-              <TextInput style={[styles.input, { flex: 2, marginRight: 6 }]} placeholder="Cód. Sistema / SKU" placeholderTextColor={COLORS.placeholder} value={codigoErp} onChangeText={setCodigoErp} />
+              <TextInput 
+                style={[styles.input, { flex: 2, marginRight: 6 }]} 
+                placeholder="SKU / Código" 
+                placeholderTextColor={COLORS.placeholder} 
+                value={codigoErp} 
+                onChangeText={setCodigoErp} 
+              />
               <View style={[styles.pickerWrap, { flex: 1 }]}>
-                <Picker selectedValue={unidade} onValueChange={setUnidade}>
-                  <Picker.Item label="UN" value="UN"/><Picker.Item label="KG" value="KG"/>
+                <Picker 
+                  selectedValue={unidade} 
+                  onValueChange={setUnidade}
+                  dropdownIconColor={COLORS.secondary}
+                >
+                  <Picker.Item label="UN" value="UN" color={COLORS.text} />
+                  <Picker.Item label="KG" value="KG" color={COLORS.text} />
                 </Picker>
               </View>
             </View>
-            <TextInput style={[styles.input, { marginBottom: 6 }]} placeholder="Descrição do Material" placeholderTextColor={COLORS.placeholder} value={descricao} onChangeText={setDescricao} />
+
+            <TextInput 
+              style={[styles.input, { marginBottom: 6 }]} 
+              placeholder="Descrição Completa" 
+              placeholderTextColor={COLORS.placeholder} 
+              value={descricao} 
+              onChangeText={setDescricao} 
+            />
+
             <View style={styles.row}>
-              <TextInput style={[styles.input, { flex: 2, marginRight: 6 }]} placeholder="Responsável" placeholderTextColor={COLORS.placeholder} value={supervisor} onChangeText={setSupervisor} />
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Preço R$" placeholderTextColor={COLORS.placeholder} keyboardType="numeric" value={precoUnitario} onChangeText={setPrecoUnitario} />
+              <TextInput 
+                style={[styles.input, { flex: 2, marginRight: 6 }]} 
+                placeholder="Supervisor/Responsável" 
+                placeholderTextColor={COLORS.placeholder} 
+                value={supervisor} 
+                onChangeText={setSupervisor} 
+              />
+              <TextInput 
+                style={[styles.input, { flex: 1 }]} 
+                placeholder="Preço R$" 
+                placeholderTextColor={COLORS.placeholder} 
+                keyboardType="numeric" 
+                value={precoUnitario} 
+                onChangeText={setPrecoUnitario} 
+              />
             </View>
+
             <View style={styles.pickerWrapFull}>
-              <Picker selectedValue={familiaId} onValueChange={setFamiliaId}>
+              <Picker 
+                selectedValue={familiaId} 
+                onValueChange={setFamiliaId}
+                dropdownIconColor={COLORS.secondary}
+              >
                 <Picker.Item label="Selecione a Família" value="" color={COLORS.placeholder} />
-                {familias.map(f => <Picker.Item key={f.id} label={f.nome} value={f.id} />)}
+                {familias.map(f => (
+                  <Picker.Item key={f.id} label={f.nome} value={f.id} color={COLORS.text} />
+                ))}
               </Picker>
             </View>
+
             <TouchableOpacity style={styles.saveButton} onPress={handleSalvarItem} disabled={salvando}>
-              {salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>{editandoId ? 'ATUALIZAR CAPA DO ITEM' : 'CADASTRAR E IR PARA REGRAS'}</Text>}
+              {salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>{editandoId ? 'ATUALIZAR CAPA' : 'CADASTRAR ITEM'}</Text>}
             </TouchableOpacity>
           </View>
 
-          {/* ================= ENGENHARIA (SÓ APARECE AO EDITAR) ================= */}
+          {/* ================= ENGENHARIA POR FORNECEDOR ================= */}
           {editandoId && (
             <>
-              {/* ÁREA VERDE: REGRAS APLICADAS */}
               <View style={[styles.card, styles.cardAppliedRules]}>
-                <Text style={[styles.cardTitle, { color: COLORS.success, borderBottomWidth: 1, borderBottomColor: '#D1FAE5', paddingBottom: 5 }]}>
-                  ✅ Fornecedores Ativos neste Item
-                </Text>
-                
-                {fatoresDoItem.length === 0 ? (
-                  <Text style={{ fontSize: 12, color: COLORS.placeholder, fontStyle: 'italic', marginTop: 10 }}>
-                    Nenhum fornecedor vinculado. Adicione abaixo.
-                  </Text>
-                ) : (
-                  <View style={{ marginTop: 10 }}>
-                    {fatoresDoItem.map((fator) => (
-                      <View key={fator.id} style={styles.fatorMiniCard}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.success }}>{fator.fornecedores?.nome}</Text>
-                          <Text style={{ fontSize: 11, color: '#4B5563', marginTop: 2 }}>
-                            Palete: <Text style={{fontWeight: 'bold'}}>{fator.fator_palete}</Text> | 
-                            Caixa: <Text style={{fontWeight: 'bold'}}>{fator.fator_caixa}</Text> | 
-                            Peso Unit: <Text style={{fontWeight: 'bold'}}>{fator.peso_unitario_produto}</Text>
-                          </Text>
-                        </View>
-                        <TouchableOpacity onPress={() => handleExcluirFator(fator.id)} style={{ padding: 8 }}>
-                          <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
+                <Text style={[styles.cardTitle, { color: COLORS.success }]}>✅ Regras Vinculadas</Text>
+                {fatoresDoItem.map((fator) => (
+                  <View key={fator.id} style={styles.fatorMiniCard}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.text }}>{fator.fornecedores?.nome}</Text>
+                      <Text style={{ fontSize: 11, color: '#475569' }}>
+                        Palete: {fator.fator_palete} | Cx: {fator.fator_caixa} | Peso: {fator.peso_unitario_produto}kg
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleExcluirFator(fator.id)} style={{ padding: 5 }}>
+                      <Ionicons name="trash" size={18} color={COLORS.danger} />
+                    </TouchableOpacity>
                   </View>
-                )}
+                ))}
               </View>
 
-              {/* ÁREA AZUL: ADICIONAR NOVA REGRA */}
-              <View style={[styles.card, styles.cardAddNewRule]}>
-                <Text style={[styles.cardTitle, { color: COLORS.secondary }]}>
-                  ➕ Vincular Novo Fornecedor
-                </Text>
+              <View style={[styles.card, styles.cardAddBg]}>
+                <Text style={[styles.cardTitle, { color: COLORS.secondary }]}>➕ Nova Regra de Fornecedor</Text>
                 
                 <View style={styles.row}>
-                  <View style={[styles.pickerWrapFull, { flex: 1, marginBottom: 0, marginRight: 8, backgroundColor: '#FFF' }]}>
-                    <Picker selectedValue={fornecedorId} onValueChange={setFornecedorId}>
-                      <Picker.Item label="Selecione o Fornecedor..." value="" color={COLORS.placeholder} />
-                      {fornecedores.map(f => <Picker.Item key={f.id} label={f.nome} value={f.id} />)}
+                  <View style={[styles.pickerWrapFull, { flex: 1, marginBottom: 0, marginRight: 8 }]}>
+                    <Picker 
+                      selectedValue={fornecedorId} 
+                      onValueChange={setFornecedorId}
+                      dropdownIconColor={COLORS.secondary}
+                    >
+                      <Picker.Item label="Escolher Fornecedor" value="" color={COLORS.placeholder} />
+                      {fornecedores.map(f => (
+                        <Picker.Item key={f.id} label={f.nome} value={f.id} color={COLORS.text} />
+                      ))}
                     </Picker>
                   </View>
                   <TouchableOpacity style={styles.btnNovoFornecedor} onPress={() => setModalFornecedor(true)}>
-                    <Ionicons name="add" size={20} color="#FFF" />
+                    <Ionicons name="add" size={24} color="#FFF" />
                   </TouchableOpacity>
                 </View>
 
-                <View style={[styles.row, { marginTop: 12 }]}>
-                  <View style={{ flex: 1, marginRight: 6 }}>
+                <View style={[styles.row, { marginTop: 10 }]}>
+                  <View style={{ flex: 1, marginRight: 4 }}>
                     <Text style={styles.miniLabel}>Fator Palete</Text>
-                    <TextInput style={[styles.input, {backgroundColor: '#FFF'}]} keyboardType="numeric" value={fatorPalete} onChangeText={setFatorPalete} />
+                    <TextInput style={styles.input} keyboardType="numeric" value={fatorPalete} onChangeText={setFatorPalete} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.miniLabel}>Fator Caixa</Text>
-                    <TextInput style={[styles.input, {backgroundColor: '#FFF'}]} keyboardType="numeric" value={fatorCaixa} onChangeText={setFatorCaixa} />
+                    <TextInput style={styles.input} keyboardType="numeric" value={fatorCaixa} onChangeText={setFatorCaixa} />
                   </View>
                 </View>
 
                 <View style={styles.row}>
-                  <View style={{ flex: 1, marginRight: 6 }}>
-                    <Text style={styles.miniLabel}>Peso Unt. Produto</Text>
-                    <TextInput style={[styles.input, {backgroundColor: '#FFF'}]} keyboardType="numeric" value={pesoUnitarioProd} onChangeText={setPesoUnitarioProd} />
+                  <View style={{ flex: 1, marginRight: 4 }}>
+                    <Text style={styles.miniLabel}>Peso Unitário</Text>
+                    <TextInput style={styles.input} keyboardType="numeric" value={pesoUnitarioProd} onChangeText={setPesoUnitarioProd} />
                   </View>
-                  <View style={{ flex: 1, marginRight: 6 }}>
+                  <View style={{ flex: 1, marginRight: 4 }}>
                     <Text style={styles.miniLabel}>Tara Saco</Text>
-                    <TextInput style={[styles.input, {backgroundColor: '#FFF'}]} keyboardType="numeric" value={pesoSaco} onChangeText={setPesoSaco} />
+                    <TextInput style={styles.input} keyboardType="numeric" value={pesoSaco} onChangeText={setPesoSaco} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.miniLabel}>Tara Caixa</Text>
-                    <TextInput style={[styles.input, {backgroundColor: '#FFF'}]} keyboardType="numeric" value={pesoCaixaUnit} onChangeText={setPesoCaixaUnit} />
+                    <TextInput style={styles.input} keyboardType="numeric" value={pesoCaixaUnit} onChangeText={setPesoCaixaUnit} />
                   </View>
                 </View>
 
                 <TouchableOpacity style={styles.saveFatorButton} onPress={handleSalvarFator} disabled={salvandoFator}>
-                  {salvandoFator ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.buttonText}>SALVAR E APLICAR AO ITEM ⬆️</Text>}
+                  {salvandoFator ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>VINCULAR REGRA</Text>}
                 </TouchableOpacity>
               </View>
             </>
           )}
         </ScrollView>
 
-        {/* ================= PESQUISA E LISTA ================= */}
+        {/* ================= LISTAGEM ================= */}
         {!editandoId && (
           <View style={styles.listArea}>
             <View style={styles.searchContainer}>
-              <Ionicons name="search" size={16} color={COLORS.placeholder} />
-              <TextInput style={styles.searchInput} placeholder="Filtrar por SKU ou Descrição..." placeholderTextColor={COLORS.placeholder} value={filtro} onChangeText={setFiltro} />
+              <Ionicons name="search" size={18} color={COLORS.placeholder} />
+              <TextInput 
+                style={styles.searchInput} 
+                placeholder="Pesquisar itens..." 
+                placeholderTextColor={COLORS.placeholder} 
+                value={filtro} 
+                onChangeText={setFiltro} 
+              />
             </View>
 
             {loading ? (
-              <ActivityIndicator size="large" color={COLORS.secondary} style={{ marginTop: 20 }} />
+              <ActivityIndicator size="large" color={COLORS.secondary} />
             ) : (
               <FlatList
                 data={itensFiltrados}
                 keyExtractor={(item) => String(item.id)}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 60, 100) }} 
                 renderItem={({ item }) => (
                   <View style={styles.itemCard}>
                     <View style={styles.itemInfo}>
-                      <Text style={styles.itemCode}>{String(item.sku_codigo || 'S/C')} • {String(item.responsavel || 'SEM RESP.')}</Text>
-                      <Text style={styles.itemName} numberOfLines={1}>{String(item.descricao || 'Sem descrição')}</Text>
+                      <Text style={styles.itemCode}>{item.sku_codigo}</Text>
+                      <Text style={styles.itemName} numberOfLines={1}>{item.descricao}</Text>
                     </View>
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
-                        <Ionicons name="settings-outline" size={16} color={COLORS.secondary} />
-                      </TouchableOpacity>
-                      {/* NOVA LIXEIRINHA DE EXCLUSÃO */}
-                      <TouchableOpacity onPress={() => handleExcluirItem(item.id, item.descricao)} style={styles.deleteBtn}>
-                        <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
-                      </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}>
+                      <Ionicons name="construct-outline" size={18} color={COLORS.secondary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleExcluirItem(item.id, item.descricao)} style={styles.deleteBtn}>
+                      <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                    </TouchableOpacity>
                   </View>
                 )}
               />
@@ -444,85 +474,89 @@ export default function ItensAdminScreen() {
           </View>
         )}
 
-        {/* MODAL PARA CRIAR FORNECEDOR RÁPIDO */}
-        <Modal visible={modalFornecedor} transparent={true} animationType="fade">
+        {/* MODAL NOVO FORNECEDOR */}
+        <Modal visible={modalFornecedor} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Novo Fornecedor</Text>
-              <Text style={styles.modalSubTitle}>Digite o nome do fornecedor (ex: CRIAFORMA)</Text>
               <TextInput 
                 style={styles.modalInput} 
+                placeholder="Nome da Empresa"
+                placeholderTextColor={COLORS.placeholder}
                 autoCapitalize="characters"
                 value={novoFornecedor} 
                 onChangeText={setNovoFornecedor} 
-                autoFocus 
               />
               <View style={styles.modalRowBtns}>
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setModalFornecedor(false)}>
-                  <Text style={styles.modalBtnTextCancel}>Cancelar</Text>
+                <TouchableOpacity onPress={() => setModalFornecedor(false)} style={styles.modalBtnCancel}>
+                  <Text style={{color: COLORS.danger, fontWeight: 'bold'}}>CANCELAR</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalBtnSave} onPress={handleCriarFornecedorRapido} disabled={salvandoNovoFornecedor}>
-                  {salvandoNovoFornecedor ? <ActivityIndicator color="#FFF" size="small"/> : <Text style={styles.modalBtnTextSave}>Salvar</Text>}
+                <TouchableOpacity onPress={handleCriarFornecedorRapido} style={styles.modalBtnSave}>
+                  <Text style={{color: '#FFF', fontWeight: 'bold'}}>SALVAR</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </Modal>
-
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 10, backgroundColor: COLORS.background },
-  
-  formAreaCompact: { flexGrow: 0, flexShrink: 0, marginBottom: 10 }, 
-  formAreaExpanded: { flex: 1, marginBottom: 10 }, 
-  
+  container: { flex: 1, padding: 12, backgroundColor: COLORS.background },
+  formAreaCompact: { flexGrow: 0, marginBottom: 10 }, 
+  formAreaExpanded: { flex: 1 }, 
   listArea: { flex: 1 },
+  
+  card: { backgroundColor: COLORS.white, padding: 15, borderRadius: 12, elevation: 3, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  cardTitle: { fontSize: 14, fontWeight: '900', marginBottom: 12, color: COLORS.secondary, textTransform: 'uppercase' },
+  miniLabel: { fontSize: 9, color: '#64748B', marginBottom: 2, fontWeight: 'bold', textTransform: 'uppercase' },
+  
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  
+  /* INPUTS SEMPRE COM TEXTO ESCURO */
+  input: { 
+    height: 45, 
+    backgroundColor: '#FFF', 
+    borderWidth: 1, 
+    borderColor: COLORS.border, 
+    borderRadius: 8, 
+    paddingHorizontal: 12, 
+    fontSize: 14, 
+    color: COLORS.text, // PRETO
+    fontWeight: '600'
+  },
+  
+  pickerWrap: { height: 45, backgroundColor: '#FFF', borderRadius: 8, justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border },
+  pickerWrapFull: { height: 45, backgroundColor: '#FFF', borderRadius: 8, justifyContent: 'center', marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
+  
+  saveButton: { height: 50, backgroundColor: COLORS.primary, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginTop: 5 },
+  saveFatorButton: { height: 45, backgroundColor: COLORS.secondary, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
+  buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  
+  btnVoltarTop: { backgroundColor: COLORS.secondary, padding: 12, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
+  btnVoltarText: { color: '#FFF', fontWeight: 'bold', fontSize: 12, marginLeft: 8 },
 
-  card: { backgroundColor: COLORS.white, padding: 12, borderRadius: 10, elevation: 3, marginBottom: 10 },
-  cardAppliedRules: { backgroundColor: COLORS.cardSavedBg, borderColor: '#A7F3D0', borderWidth: 1, elevation: 1 },
-  cardAddNewRule: { backgroundColor: COLORS.cardAddBg, borderColor: '#BAE6FD', borderWidth: 1, elevation: 1 },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border, height: 48 },
+  searchInput: { flex: 1, height: 48, marginLeft: 8, fontSize: 15, color: COLORS.text, fontWeight: '600' },
   
-  cardTitle: { fontSize: 13, fontWeight: 'bold', marginBottom: 8, color: COLORS.secondary },
-  miniLabel: { fontSize: 10, color: '#475569', marginBottom: 2, fontWeight: 'bold' },
+  itemCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 12, borderRadius: 10, marginBottom: 8, alignItems: 'center', elevation: 1 },
+  itemInfo: { flex: 1 },
+  itemCode: { fontSize: 12, color: COLORS.primary, fontWeight: '900' },
+  itemName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  editBtn: { padding: 10, backgroundColor: '#E0F2FE', borderRadius: 8, marginRight: 6 },
+  deleteBtn: { padding: 10, backgroundColor: '#FEE2E2', borderRadius: 8 },
   
-  input: { height: 38, backgroundColor: COLORS.inputBg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 10, fontSize: 13, color: COLORS.text },
-  pickerWrap: { height: 38, backgroundColor: COLORS.inputBg, borderRadius: 6, justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border },
-  pickerWrapFull: { height: 38, backgroundColor: COLORS.inputBg, borderRadius: 6, justifyContent: 'center', marginBottom: 6, borderWidth: 1, borderColor: COLORS.border },
+  btnNovoFornecedor: { backgroundColor: COLORS.success, height: 45, width: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   
-  saveButton: { height: 42, backgroundColor: COLORS.secondary, borderRadius: 6, justifyContent: 'center', alignItems: 'center', marginTop: 5 },
-  saveFatorButton: { height: 42, backgroundColor: COLORS.secondary, borderRadius: 6, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
-  buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
+  fatorMiniCard: { flexDirection: 'row', backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
   
-  btnVoltarTop: { backgroundColor: COLORS.primary, padding: 12, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 15, elevation: 4 },
-  btnVoltarText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
-
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, paddingHorizontal: 10, borderRadius: 6, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border, height: 38 },
-  searchInput: { flex: 1, height: 38, marginLeft: 5, fontSize: 13, color: COLORS.text },
-  itemCard: { flexDirection: 'row', backgroundColor: COLORS.white, padding: 10, borderRadius: 8, marginBottom: 6, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  itemInfo: { flex: 1, paddingRight: 10 },
-  itemCode: { fontSize: 9, color: COLORS.primary, fontWeight: 'bold', textTransform: 'uppercase' },
-  itemName: { fontSize: 13, fontWeight: '500', color: COLORS.text },
-  actionButtons: { flexDirection: 'row', gap: 6 },
-  editBtn: { padding: 8, backgroundColor: '#E0F2FE', borderRadius: 6 },
-  deleteBtn: { padding: 8, backgroundColor: '#FEE2E2', borderRadius: 6 }, // Estilo da lixeirinha!
-  
-  btnNovoFornecedor: { backgroundColor: COLORS.success, height: 38, width: 45, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
-  fatorMiniCard: { flexDirection: 'row', backgroundColor: '#FFF', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: '#D1FAE5', elevation: 1 },
-  
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '85%', backgroundColor: '#FFF', borderRadius: 10, padding: 20 },
-  modalTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.secondary, marginBottom: 5 },
-  modalSubTitle: { fontSize: 12, color: COLORS.placeholder, marginBottom: 15 },
-  modalInput: { height: 45, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 10, marginBottom: 20 },
-  modalRowBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
-  modalBtnCancel: { paddingVertical: 10, paddingHorizontal: 15 },
-  modalBtnTextCancel: { color: COLORS.placeholder, fontWeight: 'bold' },
-  modalBtnSave: { backgroundColor: COLORS.success, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 6 },
-  modalBtnTextSave: { color: '#FFF', fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '85%', backgroundColor: '#FFF', borderRadius: 15, padding: 20 },
+  modalInput: { height: 50, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12, marginVertical: 15, color: COLORS.text, fontSize: 16 },
+  modalRowBtns: { flexDirection: 'row', justifyContent: 'space-between' },
+  modalBtnSave: { backgroundColor: COLORS.success, padding: 12, borderRadius: 8, flex: 1, marginLeft: 5, alignItems: 'center' },
+  modalBtnCancel: { padding: 12, flex: 1, marginRight: 5, alignItems: 'center' },
 });
