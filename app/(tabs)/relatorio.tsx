@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView, TextInput, Image } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView, TextInput, Image, StatusBar } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '../../src/supabase'; 
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 
 // IMPORTAÇÃO DO CONTEXTO DE AUTENTICAÇÃO
@@ -27,21 +27,18 @@ type SortConfig = {
 
 export default function TelaConsultaSaldos() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { organizacao_id, role } = useAuth(); 
 
   const [dataSelecionada, setDataSelecionada] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   
-  // 1. PADRÃO INICIAL ALTERADO PARA 'Todos'
   const [supervisorAtivo, setSupervisorAtivo] = useState('Todos');
-  
   const [lista, setLista] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
-  
   const [busca, setBusca] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'desvio', direction: 'desc' });
 
-  // Lista de responsáveis (Botão 'Todos' será adicionado manualmente na interface)
   const supervisores = ['Edevandro', 'Everaldo', 'Fabio', 'Joel', 'Marcelo', 'Samuel'];
 
   const formatarPeso = (valor: number) => {
@@ -60,6 +57,17 @@ export default function TelaConsultaSaldos() {
     return { inicio: inicio.toISOString(), fim: fim.toISOString() };
   };
 
+  const abrirAuditoria = (item: any) => {
+    const dataString = dataSelecionada.toISOString().split('T')[0];
+    router.push({
+      pathname: '/auditoria', 
+      params: { 
+        itemId: item.id, 
+        data: dataString 
+      }
+    });
+  };
+
   const buscarDados = async () => {
     if (!organizacao_id) return; 
 
@@ -70,19 +78,16 @@ export default function TelaConsultaSaldos() {
     const sistemaFim = `${dataIso}T23:59:59.999Z`;
 
     try {
-      // 2. LÓGICA DE FILTRO DINÂMICA
       let query = supabase
         .from('itens')
         .select('id, descricao, preco_unitario')
         .eq('organizacao_id', organizacao_id);
 
-      // Se não for 'Todos', aplica o filtro do responsável
       if (supervisorAtivo !== 'Todos') {
         query = query.eq('responsavel', supervisorAtivo);
       }
 
       const { data: itens, error: errItens } = await query;
-
       if (errItens) throw errItens;
 
       const { data: contagens, error: errCont } = await supabase
@@ -236,6 +241,7 @@ export default function TelaConsultaSaldos() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       <View style={styles.headerAzul}>
         <View style={styles.logoTitleRow}>
           <Image 
@@ -284,8 +290,6 @@ export default function TelaConsultaSaldos() {
 
       <View style={styles.containerSupervisores}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
-          
-          {/* 3. BOTÃO 'TODOS' ADICIONADO MANUALMENTE */}
           <TouchableOpacity 
               onPress={() => { setSupervisorAtivo('Todos'); setBusca(''); }}
               style={[styles.badge, supervisorAtivo === 'Todos' && styles.badgeAtivo]}
@@ -333,7 +337,7 @@ export default function TelaConsultaSaldos() {
           keyExtractor={item => item.id}
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <TouchableOpacity style={styles.row} onPress={() => abrirAuditoria(item)}>
               <View style={{ flex: COL_ITEM }}>
                 <Text style={styles.itemCode}>{item.id}</Text>
                 <Text style={styles.itemDesc} numberOfLines={1}>{item.descricao}</Text>
@@ -364,7 +368,7 @@ export default function TelaConsultaSaldos() {
                   </TouchableOpacity>
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.emptyText}>Sem dados para este filtro.</Text>}
         />
