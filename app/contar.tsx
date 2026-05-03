@@ -37,7 +37,7 @@ export default function TelaDeContagem() {
   
   const { organizacao_id } = useAuth(); 
 
-  // ================= ESTADOS =================
+  // ================= ESTADOS GERAIS =================
   const [localSelecionadoId, setLocalSelecionadoId] = useState(null);
   const [localSelecionadoNome, setLocalSelecionadoNome] = useState('');
   const [modalLocalVisivel, setModalLocalVisivel] = useState(false);
@@ -48,44 +48,36 @@ export default function TelaDeContagem() {
   const [modalFornecedorVisivel, setModalFornecedorVisivel] = useState(false);
   const [listaFornecedoresDoItem, setListaFornecedoresDoItem] = useState<any[]>([]);
   
-  const [fatorCaixa, setFatorCaixa] = useState(0);
-  const [fatorPalete, setFatorPalete] = useState(0);
+  const [fatorCaixa, setFatorCaixa] = useState(0); // Para SACO_KG vira o peso do Saco (ex: 25)
+  const [fatorPalete, setFatorPalete] = useState(0); // Para SACO_KG vira o peso do Palete Fechado (ex: 525)
   const [pesoUnitario, setPesoUnitario] = useState(0);
 
-  const [isBobina, setIsBobina] = useState(false);
+  const [metodologia, setMetodologia] = useState('CAIXARIA_UN'); 
 
   const [modalCameraVisivel, setModalCameraVisivel] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [fotoUri, setFotoUri] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
-  // Estados Dinâmicos
   const [pesoBruto, setPesoBruto] = useState('0');
   const [pesoLiquido, setPesoLiquido] = useState(0);
   const [observacao, setObservacao] = useState('');
-  
-  // INICIA EM ZERO (O useEffect arruma se for bobina)
   const [numPaletes, setNumPaletes] = useState<any>(0);
+  const [numCaixas, setNumCaixas] = useState<any>(0);
+  const [pesoEmLinha, setPesoEmLinha] = useState('0'); 
 
-  // Específicos Layout Bobinas
   const [numTubetes, setNumTubetes] = useState<any>(0);
   const [taraTubete, setTaraTubete] = useState('0');
   const [numLaminas, setNumLaminas] = useState<any>(0);
-  const [pesoEmLinha, setPesoEmLinha] = useState('0');
+  const [taraExtra, setTaraExtra] = useState('0'); // Padronizado como "Taras"
 
-  // Específicos Layout Padrão
-  const [numCaixas, setNumCaixas] = useState<any>(0);
-  const [taraExtra, setTaraExtra] = useState('0');
-  const [unidAvulsas, setUnidAvulsas] = useState('0');
-
-  // Calculadora
   const [modalCalcVisivel, setModalCalcVisivel] = useState(false);
   const [listaCalculo, setListaCalculo] = useState<{qtd: string, peso: string}[]>([]);
   const [tempQtd, setTempQtd] = useState('');
   const [tempPeso, setTempPeso] = useState('');
 
   const formatarResultado = (valor: number) => {
-    if (isBobina) {
+    if (metodologia === 'BOBINA_KG' || metodologia === 'SACO_KG') {
       return valor.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
     } else {
       return valor.toLocaleString('pt-BR', { maximumFractionDigits: 0 }); 
@@ -95,7 +87,6 @@ export default function TelaDeContagem() {
   useEffect(() => {
     async function carregarDadosIniciais() {
       if (!organizacao_id) return;
-      
       const { data: areas } = await supabase.from('areas').select('*').eq('organizacao_id', organizacao_id).order('nome');
       if (areas) setAreasBd(areas);
 
@@ -104,19 +95,16 @@ export default function TelaDeContagem() {
           .from('item_fornecedor') 
           .select(`fator_caixa, fator_palete, peso_unitario_produto, fornecedores (id, nome)`)
           .eq('item_id', params.itemId);
-          
         if (engenharia) setListaFornecedoresDoItem(engenharia);
 
-        const { data: itemData } = await supabase.from('itens').select('familias(nome)').eq('id', params.itemId).single();
-          
-        if (itemData?.familias?.nome) {
-          const nomeFamilia = itemData.familias.nome.toUpperCase();
-          const checkBobina = nomeFamilia.includes('RÓTULO') || nomeFamilia.includes('FILME') || nomeFamilia.includes('BOBINA');
-          
-          setIsBobina(checkBobina);
-          
-          // MÁGICA AQUI: Se for caixaria, palete nasce em 0. Se for bobina, nasce em 1.
-          setNumPaletes(checkBobina ? 1 : 0);
+        const { data: itemData } = await supabase.from('itens').select('familias(metodo_contagem)').eq('id', params.itemId).single();
+        const metodoDb = itemData?.familias?.metodo_contagem;
+        
+        if (metodoDb) {
+            setMetodologia(metodoDb);
+            if (metodoDb === 'BOBINA_KG') setNumPaletes(1);
+        } else {
+            setMetodologia('CAIXARIA_UN');
         }
       }
     }
@@ -131,24 +119,35 @@ export default function TelaDeContagem() {
     
     const bruto = paraNum(pesoBruto);
     const nPaletes = paraNum(numPaletes);
+    const nCaixas = paraNum(numCaixas);
+    const avulsasEmLinha = paraNum(pesoEmLinha);
+    const tExtra = paraNum(taraExtra);
 
-    if (isBobina) {
+    if (metodologia === 'BOBINA_KG') {
       const taraUnitaria = paraNum(taraTubete);
       const descontoTaras = (paraNum(numTubetes) * taraUnitaria) + (paraNum(numLaminas) * 0.40) + (nPaletes * 20.00);
-      let saldoBalanca = Math.max(0, bruto - descontoTaras);
-      setPesoLiquido(saldoBalanca + paraNum(pesoEmLinha));
-    } else {
-      const nCaixas = paraNum(numCaixas);
-      const tExtra = paraNum(taraExtra);
-      const avulsas = paraNum(unidAvulsas);
+      setPesoLiquido(Math.max(0, bruto - descontoTaras) + avulsasEmLinha);
 
+    } else if (metodologia === 'CAIXARIA_UN') {
       const calcFechados = (nPaletes * fatorPalete) + (nCaixas * fatorCaixa);
       const saldoBalanca = Math.max(0, bruto - tExtra);
-      const calcFracionado = pesoUnitario > 0 ? (saldoBalanca / pesoUnitario) : 0;
+      const calcFracionado = pesoUnitario > 0 ? (saldoBalanca / pesoUnitario) : saldoBalanca;
+      setPesoLiquido(calcFechados + calcFracionado + avulsasEmLinha);
 
-      setPesoLiquido(calcFechados + calcFracionado + avulsas);
+    } else if (metodologia === 'CONVERSAO_DIRETA') {
+      const calcCaixasMaster = nPaletes * fatorPalete; 
+      const calcRolos = nCaixas * fatorCaixa;          
+      const calcPorPeso = pesoUnitario > 0 ? (bruto / pesoUnitario) : bruto; 
+      setPesoLiquido(calcCaixasMaster + calcRolos + calcPorPeso + avulsasEmLinha);
+
+    } else if (metodologia === 'SACO_KG') {
+      // NOVA MATEMÁTICA PARA COLAS/SACOS
+      const calcPaletesCheios = nPaletes * fatorPalete; // ex: 1 x 525kg
+      const calcSacosAvulsos = nCaixas * fatorCaixa;    // ex: 1 x 25kg
+      const saldoBalanca = Math.max(0, bruto - tExtra);
+      setPesoLiquido(calcPaletesCheios + calcSacosAvulsos + saldoBalanca + avulsasEmLinha);
     }
-  }, [numTubetes, taraTubete, numLaminas, numPaletes, pesoBruto, pesoEmLinha, numCaixas, taraExtra, unidAvulsas, fatorCaixa, fatorPalete, pesoUnitario, isBobina]);
+  }, [numTubetes, taraTubete, numLaminas, numPaletes, pesoBruto, pesoEmLinha, numCaixas, taraExtra, fatorCaixa, fatorPalete, pesoUnitario, metodologia]);
 
   const abrirCamera = async () => { 
     if (!permission?.granted) {
@@ -186,13 +185,8 @@ export default function TelaDeContagem() {
       const p = parseFloat(item.peso.replace(',', '.')) || 0;
       return acc + (q * p);
     }, 0);
-    
-    if (isBobina) {
-      setPesoEmLinha(total.toFixed(2).replace('.', ','));
-    } else {
-      setUnidAvulsas(total.toFixed(0)); 
-    }
-    
+    const eKg = (metodologia === 'BOBINA_KG' || metodologia === 'SACO_KG');
+    setPesoEmLinha(eKg ? total.toFixed(2).replace('.', ',') : total.toFixed(0));
     setModalCalcVisivel(false);
     setListaCalculo([]);
   };
@@ -202,7 +196,6 @@ export default function TelaDeContagem() {
     if (!idFinal) { Alert.alert("Atenção", "Selecione o local."); return; }
     if (pesoLiquido <= 0) { Alert.alert("Atenção", "O total deve ser maior que zero."); return; }
     if (!organizacao_id) return;
-
     setCarregando(true);
     try {
       let nomeArquivoFoto = null;
@@ -211,35 +204,25 @@ export default function TelaDeContagem() {
         nomeArquivoFoto = `foto_${Date.now()}.jpg`;
         await supabase.storage.from('fotos_contagem').upload(nomeArquivoFoto, Buffer.from(base64, 'base64'), { contentType: 'image/jpeg' });
       }
-      
-      const detalhesJSON = isBobina ? {
-        tubetes: parseInt(numTubetes) || 0,
-        tara_tubete: parseFloat(taraTubete.replace(',', '.')),
-        laminas: parseInt(numLaminas) || 0,
+      const detalhesJSON = {
+        metodologia_usada: metodologia,
         paletes: parseInt(numPaletes) || 0,
-        fornecedor: fornecedorSelecionado,
-        fornecedor_id: fornecedorId
-      } : {
-        paletes: parseInt(numPaletes) || 0,
-        caixas: parseInt(numCaixas) || 0,
-        tara_extra: parseFloat(taraExtra.replace(',', '.')) || 0,
-        unid_avulsas: parseFloat(unidAvulsas.replace(',', '.')) || 0,
-        fornecedor: fornecedorSelecionado,
-        fornecedor_id: fornecedorId
+        volumes_sacos: parseInt(numCaixas) || 0,
+        taras: parseFloat(taraExtra.replace(',', '.')) || 0,
+        avulsas_em_linha: parseFloat(pesoEmLinha.replace(',', '.')) || 0,
+        fornecedor: fornecedorSelecionado
       };
-
       const { error } = await supabase.from('contagens').insert([{
         organizacao_id: organizacao_id,
         item_id: params.itemId,
         area_id: idFinal, 
         peso_bruto: parseFloat(pesoBruto.replace(',', '.')) || 0,
-        em_linha: parseFloat(isBobina ? pesoEmLinha.replace(',','.') : unidAvulsas.replace(',','.')) || 0,
+        em_linha: parseFloat(pesoEmLinha.replace(',','.')) || 0,
         peso_liquido_calculado: pesoLiquido,
         observacao: observacao,
         foto_url: nomeArquivoFoto,
         detalhes_contagem: detalhesJSON
       }]);
-      
       if (error) throw error;
       Alert.alert("Sucesso", "Contagem registrada!");
       router.back();
@@ -250,277 +233,153 @@ export default function TelaDeContagem() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <HeaderContagem />
-      
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           
           <View style={styles.topPanel}>
             <View style={styles.localRow}>
               {params.areaNome ? (
-                <View style={styles.localBtn}>
-                  <Ionicons name="location" size={18} color="#EF4444" />
-                  <Text style={styles.localTextSelecionado}>{params.areaNome}</Text>
-                </View>
+                <View style={styles.localBtn}><Ionicons name="location" size={18} color="#EF4444" /><Text style={styles.localTextSelecionado}>{params.areaNome}</Text></View>
               ) : (
                 <TouchableOpacity style={styles.localBtn} onPress={() => setModalLocalVisivel(true)}>
                   <Ionicons name="location" size={18} color={localSelecionadoNome ? "#EF4444" : "#9CA3AF"} />
-                  <Text style={localSelecionadoNome ? styles.localTextSelecionado : styles.localTextPlaceholder}>
-                    {localSelecionadoNome || "Selecionar Local..."}
-                  </Text>
+                  <Text style={localSelecionadoNome ? styles.localTextSelecionado : styles.localTextPlaceholder}>{localSelecionadoNome || "Selecionar Local..."}</Text>
                 </TouchableOpacity>
               )}
-              
-              <View style={styles.skuBadge}>
-                <Ionicons name="cube" size={14} color="#8B5CF6" style={{ marginRight: 4 }} />
-                <Text style={styles.skuText}>{params.codigo || "SKU"}</Text>
-              </View>
+              <View style={styles.skuBadge}><Ionicons name="cube" size={14} color="#8B5CF6" style={{ marginRight: 4 }} /><Text style={styles.skuText}>{params.codigo || "SKU"}</Text></View>
             </View>
-
             <View style={styles.fornecedorRow}>
               <Text style={styles.labelFornecedor}>Fornecedor do Lote (Opcional):</Text>
               <TouchableOpacity style={styles.fornecedorBtn} onPress={() => setModalFornecedorVisivel(true)}>
-                <Text style={fornecedorSelecionado ? styles.fornecedorTextSelecionado : styles.fornecedorTextPlaceholder}>
-                  {fornecedorSelecionado || "Toque para selecionar..."}
-                </Text>
+                <Text style={fornecedorSelecionado ? styles.fornecedorTextSelecionado : styles.fornecedorTextPlaceholder}>{fornecedorSelecionado || "Toque para selecionar..."}</Text>
                 {fornecedorSelecionado ? (
-                  <TouchableOpacity onPress={() => {
-                    setFornecedorSelecionado('');
-                    setFornecedorId(null);
-                    setFatorCaixa(0);
-                    setFatorPalete(0);
-                    setPesoUnitario(0);
-                  }} style={{ padding: 4 }}>
-                    <Ionicons name="close-circle" size={20} color="#EF4444" />
-                  </TouchableOpacity>
-                ) : (
-                  <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
-                )}
+                  <TouchableOpacity onPress={() => { setFornecedorSelecionado(''); setFornecedorId(null); setFatorCaixa(0); setFatorPalete(0); setPesoUnitario(0); }} style={{ padding: 4 }}><Ionicons name="close-circle" size={20} color="#EF4444" /></TouchableOpacity>
+                ) : ( <Ionicons name="chevron-down" size={20} color="#9CA3AF" /> )}
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.grid}>
-            {isBobina ? (
+            {metodologia === 'BOBINA_KG' && (
               <>
-                <CardStepper label="Nº Tubetes" value={numTubetes} onChangeText={setNumTubetes} onAdd={() => setNumTubetes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumTubetes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#E6A23C" defaultVal={0} />
+                <CardStepper label="Nº Tubetes" value={numTubetes} onChangeText={setNumTubetes} onAdd={() => setNumTubetes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumTubetes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#E6A23C" />
                 <CardInput label="Tara Tubete" value={taraTubete} onChange={setTaraTubete} color="#E6A23C" />
-                
-                <CardStepper label="Lâminas (-0.4)" value={numLaminas} onChangeText={setNumLaminas} onAdd={() => setNumLaminas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumLaminas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" defaultVal={0} />
-                
-                {/* Bobina: Palete tem defaultVal = 1 */}
+                <CardStepper label="Lâminas (-0.4)" value={numLaminas} onChangeText={setNumLaminas} onAdd={() => setNumLaminas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumLaminas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardStepper label="Paletes (-20)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" defaultVal={1} />
-                
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardCalc label="Em Linha (Kg)" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" />
+                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
-            ) : (
+            )}
+
+            {metodologia === 'CAIXARIA_UN' && (
               <>
-                {/* Caixaria: Palete tem defaultVal = 0 */}
-                <CardStepper label="Paletes Inteiros" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" defaultVal={0} />
-                
-                <CardStepper label="Caixas Fechadas" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" defaultVal={0} />
-                
-                <CardInput label="Peso Bruto (Balança)" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardInput label="Tara Caixaria (Kg)" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
-                
-                <CardCalc label="Unid. Avulsas" value={unidAvulsas} onChange={setUnidAvulsas} color="#10B981" />
+                <CardStepper label="Paletes Inteiros" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Caixas Fechadas" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
+                <CardInput label="Taras (Kg)" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
+              </>
+            )}
+
+            {metodologia === 'CONVERSAO_DIRETA' && (
+              <>
+                <CardStepper label="Caixas (Master)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Rolos (Bobinas)" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardInput label="Pesar Avulsos" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
+                <CardInput label="Taras (Kg)" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
+              </>
+            )}
+
+            {metodologia === 'SACO_KG' && (
+              <>
+                {/* NOVA TELA PARA COLAS */}
+                <CardStepper label="Paletes (525kg)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Sacos (25kg)" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
+                <CardInput label="Taras (Kg)" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
           </View>
 
           <View style={styles.obsContainer}>
             <TextInput style={styles.inputObs} placeholder="Observações do lote..." value={observacao} onChangeText={setObservacao} multiline />
-            <TouchableOpacity style={[styles.btnFoto, fotoUri && styles.btnFotoAtivo]} onPress={abrirCamera}>
-              <Ionicons name={fotoUri ? "checkmark-circle" : "camera-outline"} size={28} color={fotoUri ? "#10B981" : "#6B7280"} />
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btnFoto, fotoUri && styles.btnFotoAtivo]} onPress={abrirCamera}><Ionicons name={fotoUri ? "checkmark-circle" : "camera-outline"} size={28} color={fotoUri ? "#10B981" : "#6B7280"} /></TouchableOpacity>
           </View>
 
           <View style={styles.finalCard}>
-            <Text style={styles.finalLabel}>{isBobina ? "Peso Líquido Final:" : "Total Calculado (Un):"}</Text>
+            <Text style={styles.finalLabel}>Total em Quilos (Kg):</Text>
             <Text style={styles.finalValue}>{formatarResultado(pesoLiquido)}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}>
-          <Text style={styles.btnCancelText}>Cancelar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.btnSave} onPress={salvarRegistro} disabled={carregando}>
-          {carregando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnSaveText}>Salvar Contagem</Text>}
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}><Text style={styles.btnCancelText}>Cancelar</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.btnSave} onPress={salvarRegistro} disabled={carregando}>{carregando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnSaveText}>Salvar Contagem</Text>}</TouchableOpacity>
       </View>
-
-      {/* ================= MODAIS ================= */}
-      
-      <Modal visible={modalLocalVisivel} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="location-sharp" size={24} color="#1E3A8A" />
-              <Text style={styles.modalTitle}>Localização</Text>
-            </View>
-            <FlatList 
-              data={areasBd} 
-              keyExtractor={(item) => String(item.id)} 
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.modalItem} onPress={() => { setLocalSelecionadoNome(item.nome); setLocalSelecionadoId(item.id); setModalLocalVisivel(false); }}>
-                  <Text style={styles.modalItemText}>{item.nome}</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                </TouchableOpacity>
-              )} 
-              ListEmptyComponent={<Text style={styles.emptyListText}>Nenhum local cadastrado.</Text>}
-            />
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalLocalVisivel(false)}><Text style={styles.modalCloseText}>FECHAR</Text></TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={modalFornecedorVisivel} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="business" size={24} color="#E6A23C" />
-              <Text style={styles.modalTitle}>Fornecedor</Text>
-            </View>
-            <FlatList 
-              data={listaFornecedoresDoItem} 
-              keyExtractor={(item) => String(item.fornecedores?.id || Math.random())} 
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.modalItem} 
-                  onPress={() => { 
-                    setFornecedorSelecionado(item.fornecedores?.nome || ''); 
-                    setFornecedorId(item.fornecedores?.id || null);
-                    setFatorCaixa(item.fator_caixa || 0);
-                    setFatorPalete(item.fator_palete || 0);
-                    setPesoUnitario(item.peso_unitario_produto || 0);
-                    setModalFornecedorVisivel(false); 
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{item.fornecedores?.nome}</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                </TouchableOpacity>
-              )} 
-              ListEmptyComponent={<Text style={styles.emptyListText}>Nenhum fornecedor atrelado a este item.</Text>}
-            />
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalFornecedorVisivel(false)}><Text style={styles.modalCloseText}>FECHAR</Text></TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       <Modal visible={modalCalcVisivel} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.calcContainer}>
-            <View style={styles.calcHeader}>
-              <Text style={styles.calcTitle}>{isBobina ? "Somador de Em Linha" : "Somador de Unidades"}</Text>
-              <TouchableOpacity onPress={() => setModalCalcVisivel(false)}><Ionicons name="close" size={24} color="#64748B" /></TouchableOpacity>
-            </View>
+            <View style={styles.calcHeader}><Text style={styles.calcTitle}>Somador Em Linha</Text><TouchableOpacity onPress={() => setModalCalcVisivel(false)}><Ionicons name="close" size={24} color="#64748B" /></TouchableOpacity></View>
             <View style={styles.calcInputsRow}>
-                <TextInput style={styles.calcInputPequeno} placeholder={isBobina ? "Qtd" : "Volumes"} value={tempQtd} onChangeText={setTempQtd} keyboardType="numeric" />
+                <TextInput style={styles.calcInputPequeno} placeholder="Qtd" value={tempQtd} onChangeText={setTempQtd} keyboardType="numeric" />
                 <Text style={{ fontSize: 18, color: '#94A3B8' }}>×</Text>
-                <TextInput style={styles.calcInputGrande} placeholder={isBobina ? "Peso (Kg)" : "Unid. por Volume"} value={tempPeso} onChangeText={setTempPeso} keyboardType="numeric" />
+                <TextInput style={styles.calcInputGrande} placeholder="Peso/Valor" value={tempPeso} onChangeText={setTempPeso} keyboardType="numeric" />
                 <TouchableOpacity style={styles.btnAddCalc} onPress={adicionarAoCalculo}><Ionicons name="add" size={24} color="#FFF" /></TouchableOpacity>
             </View>
             <View style={styles.listaScrollArea}>
                 <FlatList data={listaCalculo} keyExtractor={(_, index) => String(index)} renderItem={({ item, index }) => (
                     <View style={styles.linhaCalculo}>
-                        <Text style={styles.txtLinha}>
-                          {item.qtd} × {item.peso} = {(parseFloat(item.qtd.replace(',','.')) * parseFloat(item.peso.replace(',','.'))).toFixed(isBobina ? 2 : 0)} {isBobina ? 'kg' : 'un'}
-                        </Text>
+                        <Text style={styles.txtLinha}>{item.qtd} × {item.peso} = {(parseFloat(item.qtd.replace(',','.')) * parseFloat(item.peso.replace(',','.'))).toFixed(2)}</Text>
                         <TouchableOpacity onPress={() => removerDoCalculo(index)}><Ionicons name="trash-outline" size={18} color="#EF4444" /></TouchableOpacity>
                     </View>
                 )} />
             </View>
             <View style={styles.calcFooter}>
-                <View>
-                  <Text style={styles.labelTotalCalc}>TOTAL:</Text>
-                  <Text style={styles.valTotalCalc}>
-                    {listaCalculo.reduce((acc, i) => acc + (parseFloat(i.qtd.replace(',','.')) * parseFloat(i.peso.replace(',','.'))), 0).toFixed(isBobina ? 2 : 0)} {isBobina ? 'kg' : 'un'}
-                  </Text>
-                </View>
+                <View><Text style={styles.labelTotalCalc}>TOTAL:</Text><Text style={styles.valTotalCalc}>{listaCalculo.reduce((acc, i) => acc + (parseFloat(i.qtd.replace(',','.')) * parseFloat(i.peso.replace(',','.'))), 0).toFixed(2)}</Text></View>
                 <TouchableOpacity style={styles.btnConfirmarCalc} onPress={confirmarCalculo}><Text style={styles.txtConfirmar}>OK</Text></TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={modalCameraVisivel} animationType="slide">
-        <CameraView style={{ flex: 1 }} ref={cameraRef} active={modalCameraVisivel}>
-          <View style={styles.cameraOverlay}>
-            <TouchableOpacity onPress={() => setModalCameraVisivel(false)} style={styles.btnFecharCam}><Ionicons name="close" size={40} color="#FFF" /></TouchableOpacity>
-            <TouchableOpacity style={styles.btnCapturar} onPress={tirarFoto}><View style={styles.circuloExterno}><View style={styles.circuloInterno} /></View></TouchableOpacity>
-          </View>
-        </CameraView>
-      </Modal>
-    </View>
+      <Modal visible={modalCameraVisivel} animationType="slide"><CameraView style={{ flex: 1 }} ref={cameraRef} active={modalCameraVisivel}><View style={styles.cameraOverlay}><TouchableOpacity onPress={() => setModalCameraVisivel(false)} style={styles.btnFecharCam}><Ionicons name="close" size={40} color="#FFF" /></TouchableOpacity><TouchableOpacity style={styles.btnCapturar} onPress={tirarFoto}><View style={styles.circuloExterno}><View style={styles.circuloInterno} /></View></TouchableOpacity></View></CameraView></Modal>
+    </ScrollView>
   );
 }
 
-// ================= COMPONENTES REUTILIZÁVEIS =================
+// ================= COMPONENTES E ESTILOS IGUAIS AO ANTERIOR =================
 const CardStepper = ({ label, value, onAdd, onSub, onChangeText, color, defaultVal = 0 }: any) => (
   <View style={[styles.card, { borderLeftColor: color }]}>
-    <Text style={styles.cardLabel}>{label}:</Text>
+    <Text style={styles.cardLabel}>{label}</Text>
     <View style={styles.stepper}>
-        <TouchableOpacity onPress={onSub} style={styles.stepBtnContainer}>
-          <Ionicons name="remove" size={20} color="#1E3A8A" />
-        </TouchableOpacity>
-        <TextInput 
-          style={styles.stepInput} 
-          value={String(value)} 
-          onChangeText={onChangeText} 
-          keyboardType="numeric" 
-          selectTextOnFocus 
-          // Agora ele respeita se o defaultVal é 0 ou 1
-          onFocus={() => { if (String(value) === String(defaultVal)) onChangeText(''); }} 
-          onBlur={() => { if (value === '') onChangeText(String(defaultVal)); }} 
-        />
-        <TouchableOpacity onPress={onAdd} style={styles.stepBtnContainer}>
-          <Ionicons name="add" size={20} color="#1E3A8A" />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onSub} style={styles.stepBtnContainer}><Ionicons name="remove" size={20} color="#1E3A8A" /></TouchableOpacity>
+        <TextInput style={styles.stepInput} value={String(value)} onChangeText={onChangeText} keyboardType="numeric" selectTextOnFocus onFocus={() => { if (String(value) === String(defaultVal)) onChangeText(''); }} onBlur={() => { if (value === '') onChangeText(String(defaultVal)); }} />
+        <TouchableOpacity onPress={onAdd} style={styles.stepBtnContainer}><Ionicons name="add" size={20} color="#1E3A8A" /></TouchableOpacity>
     </View>
   </View>
 );
 
 const CardInput = ({ label, value, onChange, color }: any) => (
   <View style={[styles.card, { borderLeftColor: color }]}>
-    <Text style={styles.cardLabel}>{label}:</Text>
-    <TextInput 
-      style={styles.cardInput} 
-      value={String(value)} 
-      onChangeText={onChange} 
-      keyboardType="numeric" 
-      selectTextOnFocus 
-      onFocus={() => { if (value === '0' || value === 0) onChange(''); }} 
-      onBlur={() => { if (value === '') onChange('0'); }} 
-    />
+    <Text style={styles.cardLabel}>{label}</Text>
+    <TextInput style={styles.cardInput} value={String(value)} onChangeText={onChange} keyboardType="numeric" selectTextOnFocus onFocus={() => { if (value === '0' || value === 0) onChange(''); }} onBlur={() => { if (value === '') onChange('0'); }} />
   </View>
 );
 
 const CardCalc = ({ label, value, onChange, color, onPressCalc }: any) => (
   <View style={[styles.card, { borderLeftColor: color }]}>
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={styles.cardLabel}>{label}:</Text>
-        <TouchableOpacity onPress={onPressCalc} style={styles.btnCalcAbre}>
-            <MaterialCommunityIcons name="calculator" size={18} color={color} />
-        </TouchableOpacity>
-    </View>
-    <TextInput 
-      style={styles.cardInput} 
-      value={String(value)} 
-      onChangeText={onChange} 
-      keyboardType="numeric" 
-      selectTextOnFocus 
-      onFocus={() => { if (value === '0' || value === 0) onChange(''); }} 
-      onBlur={() => { if (value === '') onChange('0'); }} 
-    />
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={styles.cardLabel}>{label}</Text><TouchableOpacity onPress={onPressCalc} style={styles.btnCalcAbre}><MaterialCommunityIcons name="calculator" size={18} color={color} /></TouchableOpacity></View>
+    <TextInput style={styles.cardInput} value={String(value)} onChangeText={onChange} keyboardType="numeric" selectTextOnFocus onFocus={() => { if (value === '0' || value === 0) onChange(''); }} onBlur={() => { if (value === '') onChange('0'); }} />
   </View>
 );
 
-// ================= ESTILOS =================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingBottom: 15, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  header: { backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingBottom: 15, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
   headerCenter: { flexDirection: 'row', alignItems: 'center' },
   headerTitle: { fontSize: 18, color: '#E6A23C', fontWeight: 'bold' },
   logoSC: { width: 34, height: 34, backgroundColor: '#E6A23C', borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
@@ -529,69 +388,46 @@ const styles = StyleSheet.create({
   topPanel: { marginBottom: 15 },
   localRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   localBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#E2E8F0', padding: 12, borderRadius: 12, marginRight: 10 },
-  localTextPlaceholder: { fontSize: 14, color: '#64748B', marginLeft: 6, fontWeight: '500' },
+  localTextPlaceholder: { fontSize: 14, color: '#64748B', marginLeft: 6 },
   localTextSelecionado: { fontSize: 14, color: '#1E293B', marginLeft: 6, fontWeight: 'bold' },
   skuBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, elevation: 1, borderWidth: 1, borderColor: '#E2E8F0' },
   skuText: { fontSize: 14, fontWeight: 'bold', color: '#1F2937' },
   fornecedorRow: { backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12, elevation: 1, borderWidth: 1, borderColor: '#E2E8F0' },
   labelFornecedor: { fontSize: 11, fontWeight: 'bold', color: '#64748B', marginBottom: 6 },
-  fornecedorBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#F1F5F9' },
+  fornecedorBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 12, borderRadius: 8 },
   fornecedorTextPlaceholder: { fontSize: 14, color: '#94A3B8' },
   fornecedorTextSelecionado: { fontSize: 14, color: '#1E3A8A', fontWeight: 'bold' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: { backgroundColor: '#FFF', width: '48%', padding: 15, borderRadius: 16, marginBottom: 15, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, borderLeftWidth: 4 },
+  card: { backgroundColor: '#FFF', width: '48%', padding: 15, borderRadius: 16, marginBottom: 15, elevation: 2, borderLeftWidth: 4 },
   cardLabel: { fontSize: 12, fontWeight: 'bold', color: '#64748B', marginBottom: 10 },
   stepper: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, padding: 4 },
-  stepBtnContainer: { padding: 5, width: 35, alignItems: 'center', justifyContent: 'center' },
-  stepInput: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', textAlign: 'center', flex: 1, padding: 0 },
-  
-  cardInput: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    textAlign: 'right', 
-    color: '#1E2937', 
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#F8FAFC', 
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 5
-  },
-  
-  obsContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, marginVertical: 5, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  stepBtnContainer: { padding: 5, width: 35, alignItems: 'center' },
+  stepInput: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', textAlign: 'center', flex: 1 },
+  cardInput: { fontSize: 22, fontWeight: 'bold', textAlign: 'right', color: '#1E2937', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+  obsContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, marginVertical: 5 },
   inputObs: { flex: 1, fontSize: 14, height: 55, color: '#1E293B' },
   btnFoto: { padding: 8, marginLeft: 10 },
   btnFotoAtivo: { backgroundColor: '#D1FAE5', borderRadius: 20 },
-  finalCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 6, borderLeftColor: '#1E3A8A', marginTop: 15, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 5 },
+  finalCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 6, borderLeftColor: '#1E3A8A', marginTop: 15, elevation: 4 },
   finalLabel: { fontSize: 16, fontWeight: 'bold', color: '#1E3A8A' },
   finalValue: { fontSize: 32, fontWeight: '900', color: '#0F172A' },
   footer: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingHorizontal: 20, paddingTop: 15, gap: 15 },
   btnCancel: { flex: 1, height: 55, alignItems: 'center', justifyContent: 'center' },
   btnCancelText: { fontSize: 16, color: '#94A3B8', fontWeight: 'bold' },
-  btnSave: { flex: 1.5, backgroundColor: '#E6A23C', height: 55, borderRadius: 12, alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  btnSave: { flex: 1.5, backgroundColor: '#E6A23C', height: 55, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   btnSaveText: { fontSize: 17, color: '#FFF', fontWeight: 'bold' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '80%', elevation: 10 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', gap: 10 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1E293B' },
-  modalItem: { flexDirection: 'row', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', alignItems: 'center', justifyContent: 'space-between' },
-  modalItemText: { fontSize: 16, color: '#334155', fontWeight: 'bold' },
-  emptyListText: { textAlign: 'center', color: '#94A3B8', marginVertical: 20, fontStyle: 'italic' },
-  modalCloseBtn: { marginTop: 15, paddingVertical: 15, backgroundColor: '#F8FAFC', borderRadius: 12, alignItems: 'center' },
-  modalCloseText: { color: '#64748B', fontWeight: 'bold' },
-  btnCalcAbre: { backgroundColor: '#ECFDF5', padding: 6, borderRadius: 8 },
-  calcContainer: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20, elevation: 10 },
+  calcContainer: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },
   calcHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   calcTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
   calcInputsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
-  calcInputPequeno: { flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, fontSize: 16, textAlign: 'center', fontWeight: 'bold', color: '#1E293B' },
-  calcInputGrande: { flex: 2, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, fontSize: 16, fontWeight: 'bold', color: '#1E293B' },
+  calcInputPequeno: { flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, fontSize: 16, textAlign: 'center' },
+  calcInputGrande: { flex: 2, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, fontSize: 16 },
   btnAddCalc: { backgroundColor: '#1E3A8A', padding: 12, borderRadius: 10 },
-  listaScrollArea: { height: 160, marginBottom: 20 },
+  listaScrollArea: { height: 160 },
   linhaCalculo: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  txtLinha: { fontSize: 14, color: '#475569', fontWeight: '500' },
-  calcFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 15 },
+  txtLinha: { fontSize: 14, color: '#475569' },
+  calcFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 15 },
   labelTotalCalc: { fontSize: 12, color: '#94A3B8', fontWeight: 'bold' },
   valTotalCalc: { fontSize: 24, fontWeight: 'bold', color: '#10B981' },
   btnConfirmarCalc: { backgroundColor: '#10B981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
