@@ -4,8 +4,19 @@
     "slug": "smartcount",
     "version": "1.0.0",
     "owner": "tfiletti",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "android": {
-      "package": "com.tfiletti.smartcount"
+      "package": "com.tfiletti.smartcount",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "plugins": [
       "expo-router",
