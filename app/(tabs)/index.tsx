@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext'; 
 
 const HeaderHome = ({ topInset }: { topInset: number }) => (
-  <View style={[styles.header, { paddingTop: topInset + 15 }]}>
+  <View style={[styles.header, { paddingTop: topInset + 10 }]}>
     <View style={styles.logoContainer}>
       <View style={styles.logoSC}><Text style={styles.logoSCText}>SC</Text></View>
       <View>
@@ -28,33 +28,33 @@ export default function TelaInicial() {
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
-  const { role } = useAuth();
+  const { role, organizacao_id } = useAuth();
 
   useEffect(() => {
     async function buscarFamilias() {
-      const { data, error } = await supabase.from('familias').select('*');
+      if (!organizacao_id) return;
+      const { data, error } = await supabase
+        .from('familias')
+        .select('*')
+        .eq('organizacao_id', organizacao_id)
+        .order('nome', { ascending: true });
+
       if (data) setFamilias(data);
       setCarregando(false);
     }
     buscarFamilias();
-  }, []);
+  }, [organizacao_id]);
 
   const aoClicarNaFamilia = (familiaId: string, familiaNome: string) => {
     router.push({
       pathname: '/itens', 
-      params: { 
-        familiaId: familiaId, 
-        familiaNome: familiaNome 
-      }
+      params: { familiaId, familiaNome }
     });
   };
 
   const familiasFiltradas = familias.filter((item: any) => {
-    if (busca === '') return true;
     const termoBusca = busca.toLowerCase();
-    const nomeFamilia = item.nome?.toLowerCase() || '';
-    return nomeFamilia.includes(termoBusca);
+    return (item.nome?.toLowerCase() || '').includes(termoBusca);
   });
 
   return (
@@ -65,9 +65,8 @@ export default function TelaInicial() {
       <View style={styles.content}>
         <Text style={styles.sectionTitle}>Selecione uma família:</Text>
 
-        {/* --- CAMPO DE PESQUISA --- */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="#94A3B8" />
+          <Ionicons name="search" size={16} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar família..."
@@ -77,22 +76,20 @@ export default function TelaInicial() {
             autoCorrect={false}
           />
           {busca.length > 0 && (
-            <TouchableOpacity onPress={() => setBusca('')} style={{ padding: 4 }}>
-              <Ionicons name="close-circle" size={18} color="#CBD5E1" />
+            <TouchableOpacity onPress={() => setBusca('')}>
+              <Ionicons name="close-circle" size={16} color="#CBD5E1" />
             </TouchableOpacity>
           )}
         </View>
 
         {carregando ? (
-          <ActivityIndicator size="large" color="#005b9f" style={{ marginTop: 50 }} />
+          <ActivityIndicator size="large" color="#F59E0B" style={{ marginTop: 50 }} />
         ) : (
           <FlatList
             data={familiasFiltradas} 
             keyExtractor={(item: any) => item.id.toString()}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ 
-              paddingBottom: insets.bottom + 160 // Aumentado para o FAB não tampar o último item!
-            }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 160 }}
             renderItem={({ item }) => (
               <TouchableOpacity 
                 style={styles.cardFamilias} 
@@ -100,18 +97,18 @@ export default function TelaInicial() {
                 activeOpacity={0.7}
               >
                 <View style={styles.cardHeader}>
-                  <Text style={styles.cardTag}>Rótulos e Embalagens</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  <Text style={styles.cardTag}>Família de Materiais</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
                 </View>
                 <Text style={styles.cardTitle}>{item.nome}</Text>
-                <Text style={styles.cardDescription}>Materiais cadastrados para conferência</Text>
+                <Text style={styles.cardDescription}>Toque para iniciar a conferência deste grupo</Text>
               </TouchableOpacity>
             )}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="search-outline" size={36} color="#CBD5E1" />
+                <Ionicons name="file-tray-outline" size={32} color="#CBD5E1" />
                 <Text style={styles.emptyText}>
-                    {busca ? "Nenhuma família encontrada." : "Nenhuma família cadastrada."}
+                    {busca ? "Nenhuma família encontrada." : "Aguardando cadastro de famílias."}
                 </Text>
               </View>
             }
@@ -119,14 +116,14 @@ export default function TelaInicial() {
         )}
       </View>
 
-      {/* --- BOTÃO FLUTUANTE ADMIN --- */}
-      {role === 'ADMIN' && (
+      {/* --- BOTÃO ADMIN RESTAURADO E POSICIONADO ACIMA DAS TABS --- */}
+      {role?.toUpperCase() === 'ADMIN' && (
         <TouchableOpacity 
-          style={[styles.fabAdmin, { bottom: insets.bottom + 100 }]} // Subiu de 90 para 130 para desgrudar da barra
+          style={[styles.fabAdmin, { bottom: insets.bottom + 110 }]} 
           onPress={() => router.push('/admin')} 
           activeOpacity={0.8}
         >
-          <Ionicons name="settings" size={22} color="#FFFFFF" />
+          <Ionicons name="settings-sharp" size={22} color="#FFFFFF" />
         </TouchableOpacity>
       )}
     </View>
@@ -134,25 +131,25 @@ export default function TelaInicial() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: { 
     backgroundColor: '#FFFFFF', 
-    paddingBottom: 12, 
+    paddingBottom: 10, 
     paddingHorizontal: 20, 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
-    elevation: 3 
+    elevation: 2 
   },
   logoContainer: { flexDirection: 'row', alignItems: 'center' },
-  logoSC: { width: 32, height: 32, backgroundColor: '#F59E0B', borderRadius: 4, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  logoSCText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
-  logoSmart: { color: '#F59E0B', fontSize: 16, fontWeight: 'bold', lineHeight: 18 },
-  logoCount: { color: '#1F2937', fontSize: 12, fontWeight: 'bold', letterSpacing: 1 },
+  logoSC: { width: 30, height: 30, backgroundColor: '#F59E0B', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  logoSCText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+  logoSmart: { color: '#F59E0B', fontSize: 15, fontWeight: 'bold', lineHeight: 16 },
+  logoCount: { color: '#1F2937', fontSize: 11, fontWeight: 'bold', letterSpacing: 1 },
   headerTitleContainer: { flex: 1, alignItems: 'flex-end' },
-  headerTitle: { fontSize: 10, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 15 },
-  sectionTitle: { fontSize: 16, color: '#111827', fontWeight: 'bold', marginBottom: 12 },
+  headerTitle: { fontSize: 9, color: '#94A3B8', fontWeight: 'bold', textTransform: 'uppercase' },
+  content: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  sectionTitle: { fontSize: 14, color: '#4B5563', fontWeight: 'bold', marginBottom: 10 },
   
   searchContainer: {
     flexDirection: 'row',
@@ -160,55 +157,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', 
     borderRadius: 8,
     paddingHorizontal: 12,
-    marginBottom: 15,
-    height: 42,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    marginBottom: 12,
+    height: 38,
     borderWidth: 1,
     borderColor: '#E5E7EB'
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#1E293B',
-  },
+  searchInput: { flex: 1, marginLeft: 6, fontSize: 13, color: '#1E293B' },
 
   cardFamilias: { 
     backgroundColor: '#FFFFFF', 
-    padding: 14, 
-    borderRadius: 10, 
-    marginBottom: 10, 
-    elevation: 1, 
-    borderLeftWidth: 5, 
+    padding: 12, 
+    borderRadius: 8, 
+    marginBottom: 8, 
+    borderLeftWidth: 4, 
     borderLeftColor: '#F59E0B',
-    borderWidth: 1,
-    borderColor: '#F3F4F6'
+    elevation: 1,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  cardTag: { fontSize: 10, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937' },
-  cardDescription: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  cardTag: { fontSize: 9, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
+  cardDescription: { fontSize: 11, color: '#9CA3AF', marginTop: 1 },
   
   emptyContainer: { alignItems: 'center', marginTop: 40 },
-  emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 14 },
+  emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 13 },
 
   fabAdmin: {
     position: 'absolute',
     left: 20, 
     backgroundColor: '#1E3A8A', 
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    elevation: 8,
+    zIndex: 999, // Garante que fique sobre a Tab Bar
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
 });

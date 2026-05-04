@@ -27,14 +27,18 @@ export default function TelaAuditoria() {
   const [carregando, setCarregando] = useState(true);
   const [itemInfo, setItemInfo] = useState({ nome: '', codigo: '' });
 
+  // FORMATADOR BLINDADO (Com separador de milhar e 3 casas decimais)
   const formatarBR = (valor: number) => {
     if (valor === undefined || valor === null) return "0,000";
-    return valor.toFixed(3).replace('.', ',');
+    return valor
+      .toFixed(3)
+      .replace('.', ',')
+      .replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
   };
 
   const parseBR = (valor: any) => {
     if (!valor) return 0;
-    return parseFloat(valor.toString().replace(',', '.')) || 0;
+    return parseFloat(String(valor).replace(',', '.')) || 0;
   };
 
   useEffect(() => {
@@ -45,8 +49,17 @@ export default function TelaAuditoria() {
 
       try {
         setCarregando(true);
-        const { data: itemData } = await supabase.from('itens').select('nome, id').eq('id', idBusca).maybeSingle();
-        if (itemData) setItemInfo({ codigo: itemData.id, nome: itemData.nome });
+        
+        // CORREÇÃO: Buscando 'descricao' e 'sku_codigo' que são os nomes reais das colunas
+        const { data: itemData } = await supabase
+          .from('itens')
+          .select('descricao, sku_codigo')
+          .eq('id', idBusca)
+          .maybeSingle();
+          
+        if (itemData) {
+          setItemInfo({ codigo: itemData.sku_codigo, nome: itemData.descricao });
+        }
 
         const { data: contData, error: errCont } = await supabase
           .from('contagens')
@@ -72,13 +85,10 @@ export default function TelaAuditoria() {
     
     const pesoEmLinha = parseBR(item.em_linha);
 
-    // Regra: Palete só aparece se em_linha estiver zerado
-    const temComposicao = (det.volumes_sacos_caixas > 0) || (det.caixas > 0) || (det.tubetes > 0) || (det.laminas > 0) || (det.taras > 0) || (det.paletes > 0 && pesoEmLinha === 0);
-
     const MiniCard = ({ icon, label, value, color }: any) => (
       <View style={[styles.miniCard, { borderTopColor: color }]}>
         <MaterialCommunityIcons name={icon} size={16} color={color} />
-        <Text style={styles.miniCardValue}>{value}</Text>
+        <Text style={styles.miniCardValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
         <Text style={styles.miniCardLabel}>{label}</Text>
       </View>
     );
@@ -106,19 +116,16 @@ export default function TelaAuditoria() {
           </View>
         </View>
 
-        {temComposicao && (
-          <View style={styles.miniCardsGrid}>
-            {det.paletes > 0 && pesoEmLinha === 0 && (
-                <MiniCard icon="package-variant-closed" label="Paletes" value={det.paletes} color="#1E3A8A" />
-            )}
-            {(det.volumes_sacos_caixas > 0 || det.caixas > 0) && (
-                <MiniCard icon="package-variant" label="Cx/Sacos" value={det.volumes_sacos_caixas || det.caixas} color="#E6A23C" />
-            )}
-            {det.tubetes > 0 && <MiniCard icon="format-line-spacing" label="Tubetes" value={det.tubetes} color="#64748B" />}
-            {det.laminas > 0 && <MiniCard icon="layers-outline" label="Lâminas" value={det.laminas} color="#8B5CF6" />}
-            {det.taras > 0 && <MiniCard icon="scale-balance" label="Taras" value={`${det.taras}k`} color="#EF4444" />}
-          </View>
-        )}
+        {/* GRID DE COMPOSIÇÃO: Sempre visível, alinhado em 2 linhas exatas (3x2) */}
+        <View style={styles.miniCardsGrid}>
+          <MiniCard icon="package-variant-closed" label="Paletes" value={det.paletes || 0} color="#1E3A8A" />
+          <MiniCard icon="package-variant" label="Cx/Sacos" value={det.volumes_sacos_caixas || det.caixas || 0} color="#E6A23C" />
+          <MiniCard icon="format-line-spacing" label="Tubetes" value={det.tubetes || 0} color="#64748B" />
+          
+          <MiniCard icon="layers-outline" label="Lâminas" value={det.laminas || 0} color="#8B5CF6" />
+          <MiniCard icon="scale-balance" label="Taras (kg)" value={String(det.taras || 0).replace('.', ',')} color="#EF4444" />
+          <MiniCard icon="calculator-variant" label="Linha (kg)" value={String(pesoEmLinha || 0).replace('.', ',')} color="#10B981" />
+        </View>
 
         {item.observacao && item.observacao !== 'EMPTY' && item.observacao !== '' && (
           <View style={styles.boxObs}>
@@ -166,10 +173,24 @@ const styles = StyleSheet.create({
   infoBox: { flex: 1, backgroundColor: '#F8FAFC', paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#F1F5F9' },
   infoLabel: { fontSize: 8, color: '#94A3B8', fontWeight: 'bold', marginBottom: 2 },
   infoValue: { fontSize: 14, fontWeight: 'bold', color: '#334155' },
-  miniCardsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  miniCard: { backgroundColor: '#F8FAFC', width: '31.5%', padding: 6, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: '#F1F5F9', borderTopWidth: 2 },
+  
+  // Ajuste do Grid para exatamente 2 linhas
+  miniCardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
+  miniCard: { 
+    backgroundColor: '#F8FAFC', 
+    width: '31%', // Mantém 3 por linha com folga
+    marginBottom: 8, // Espaçamento entre a primeira e a segunda linha
+    paddingVertical: 8, 
+    paddingHorizontal: 4, 
+    borderRadius: 6, 
+    alignItems: 'center', 
+    borderWidth: 1, 
+    borderColor: '#F1F5F9', 
+    borderTopWidth: 2 
+  },
   miniCardValue: { fontSize: 11, fontWeight: 'bold', color: '#1E293B', marginTop: 2 },
   miniCardLabel: { fontSize: 8, color: '#64748B', fontWeight: 'bold', textTransform: 'uppercase' },
+  
   boxObs: { backgroundColor: '#FFFBEB', padding: 8, borderRadius: 6, flexDirection: 'row', gap: 5, marginBottom: 8, borderWidth: 1, borderColor: '#FEF3C7' },
   txtObs: { fontSize: 12, color: '#92400E', flex: 1 },
   imgEvidencia: { width: '100%', height: 200, borderRadius: 8, marginTop: 4, backgroundColor: '#E2E8F0' },

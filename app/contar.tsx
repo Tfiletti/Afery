@@ -61,7 +61,7 @@ export default function TelaDeContagem() {
 
   const [pesoBruto, setPesoBruto] = useState('0');
   const [pesoLiquido, setPesoLiquido] = useState(0);
-  const [observacao, setObservacao] = useState('');
+  const [observacao, setObs] = useState('');
   const [numPaletes, setNumPaletes] = useState<any>(0);
   const [numCaixas, setNumCaixas] = useState<any>(0);
   const [pesoEmLinha, setPesoEmLinha] = useState('0'); 
@@ -206,25 +206,33 @@ export default function TelaDeContagem() {
         nomeArquivoFoto = `foto_${Date.now()}.jpg`;
         await supabase.storage.from('fotos_contagem').upload(nomeArquivoFoto, Buffer.from(base64, 'base64'), { contentType: 'image/jpeg' });
       }
+
+      // ================= FIX X DA QUESTÃO: SALVAMENTO COMPLETO =================
       const detalhesJSON = {
         metodologia_usada: metodologia,
-        paletes: parseInt(numPaletes) || 0,
-        volumes_sacos_caixas: parseInt(numCaixas) || 0,
-        taras: parseFloat(taraExtra.replace(',', '.')) || 0,
-        avulsas_em_linha: parseFloat(pesoEmLinha.replace(',', '.')) || 0,
-        fornecedor: fornecedorSelecionado
+        fornecedor: fornecedorSelecionado,
+        paletes: parseInt(String(numPaletes)) || 0,
+        tubetes: parseInt(String(numTubetes)) || 0,
+        tara_tubete: parseFloat(String(taraTubete).replace(',', '.')) || 0,
+        laminas: parseInt(String(numLaminas)) || 0,
+        volumes_sacos_caixas: parseInt(String(numCaixas)) || 0,
+        caixas: parseInt(String(numCaixas)) || 0,
+        taras: parseFloat(String(taraExtra).replace(',', '.')) || 0,
+        avulsas_em_linha: parseFloat(String(pesoEmLinha).replace(',', '.')) || 0,
       };
+
       const { error } = await supabase.from('contagens').insert([{
         organizacao_id: organizacao_id,
         item_id: params.itemId,
         area_id: idFinal, 
-        peso_bruto: parseFloat(pesoBruto.replace(',', '.')) || 0,
-        em_linha: parseFloat(pesoEmLinha.replace(',','.')) || 0,
+        peso_bruto: parseFloat(String(pesoBruto).replace(',', '.')) || 0,
+        em_linha: parseFloat(String(pesoEmLinha).replace(',','.')) || 0,
         peso_liquido_calculado: pesoLiquido,
         observacao: observacao,
         foto_url: nomeArquivoFoto,
         detalhes_contagem: detalhesJSON
       }]);
+
       if (error) throw error;
       Alert.alert("Sucesso", "Contagem registrada!");
       router.back();
@@ -239,7 +247,7 @@ export default function TelaDeContagem() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           
-          {/* PAINEL SUPERIOR - LOCAL E SKU */}
+          {/* PAINEL SUPERIOR */}
           <View style={styles.topPanel}>
             <View style={styles.localRow}>
               {params.areaNome ? (
@@ -261,199 +269,148 @@ export default function TelaDeContagem() {
               </View>
             </View>
 
-            {/* SELEÇÃO DE FORNECEDOR */}
             <View style={styles.fornecedorRow}>
               <Text style={styles.labelFornecedor}>Fornecedor do Lote (Opcional):</Text>
               <TouchableOpacity style={styles.fornecedorBtn} onPress={() => setModalFornecedorVisivel(true)}>
                 <Text style={fornecedorSelecionado ? styles.fornecedorTextSelecionado : styles.fornecedorTextPlaceholder}>
                   {fornecedorSelecionado || "Toque para selecionar..."}
                 </Text>
-                {fornecedorSelecionado ? (
+                {fornecedorSelecionado && (
                   <TouchableOpacity onPress={() => { setFornecedorSelecionado(''); setFornecedorId(null); setFatorCaixa(0); setFatorPalete(0); setPesoUnitario(0); }} style={{ padding: 4 }}>
                     <Ionicons name="close-circle" size={20} color="#EF4444" />
                   </TouchableOpacity>
-                ) : ( <Ionicons name="chevron-down" size={20} color="#9CA3AF" /> )}
+                )}
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* GRID DE CARDS DINÂMICOS */}
+          {/* GRID DINÂMICO COM LABELS LIMPOS (SEM PESOS) */}
           <View style={styles.grid}>
             {metodologia === 'BOBINA_KG' && (
               <>
-                <CardStepper label="Nº Tubetes" value={numTubetes} onChangeText={setNumTubetes} onAdd={() => setNumTubetes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumTubetes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#E6A23C" />
+                <CardStepper label="Tubetes" value={numTubetes} onChangeText={setNumTubetes} onAdd={() => setNumTubetes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumTubetes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#E6A23C" />
                 <CardInput label="Tara Tubete" value={taraTubete} onChange={setTaraTubete} color="#E6A23C" />
-                <CardStepper label="Lâminas (-0.4)" value={numLaminas} onChangeText={setNumLaminas} onAdd={() => setNumLaminas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumLaminas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
-                <CardStepper label="Paletes (-20)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" defaultVal={1} />
+                <CardStepper label="Lâminas" value={numLaminas} onChangeText={setNumLaminas} onAdd={() => setNumLaminas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumLaminas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Paletes" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" defaultVal={1} />
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
+                <CardCalc label="Em linha" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
 
             {metodologia === 'CAIXARIA_UN' && (
               <>
-                <CardStepper label="Paletes Inteiros" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
-                <CardStepper label="Caixas Fechadas" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Paletes" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Caixas" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardInput label="Taras (Kg)" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
-                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
+                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardCalc label="Em linha" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
 
             {metodologia === 'CONVERSAO_DIRETA' && (
               <>
-                <CardStepper label="Caixas (Master)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Paletes (Master)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardStepper label="Rolos (Bobinas)" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
-                <CardInput label="Pesar Avulsos" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardInput label="Taras (Kg)" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
-                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
+                <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
+                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardCalc label="Em linha" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
 
             {metodologia === 'SACO_KG' && (
               <>
-                <CardStepper label="Paletes (525kg)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
-                <CardStepper label="Sacos (25kg)" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Paletes" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
+                <CardStepper label="Sacos" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardInput label="Taras (Kg)" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
-                <CardCalc label="Em linha:" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
+                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardCalc label="Em linha" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
           </View>
 
-          {/* OBSERVAÇÕES E FOTO */}
           <View style={styles.obsContainer}>
-            <TextInput style={styles.inputObs} placeholder="Observações do lote..." value={observacao} onChangeText={setObservacao} multiline />
+            <TextInput style={styles.inputObs} placeholder="Observações..." placeholderTextColor="#94A3B8" value={observacao} onChangeText={setObs} multiline />
             <TouchableOpacity style={[styles.btnFoto, fotoUri && styles.btnFotoAtivo]} onPress={abrirCamera}>
               <Ionicons name={fotoUri ? "checkmark-circle" : "camera-outline"} size={28} color={fotoUri ? "#10B981" : "#6B7280"} />
             </TouchableOpacity>
           </View>
 
-          {/* CARD DE RESULTADO FINAL */}
           <View style={styles.finalCard}>
-            <Text style={styles.finalLabel}>
-              {metodologia === 'BOBINA_KG' || metodologia === 'SACO_KG' ? 'Total em Quilos (Kg):' : 'Total Calculado:'}
-            </Text>
+            <Text style={styles.finalLabel}>Total</Text>
             <Text style={styles.finalValue}>{formatarResultado(pesoLiquido)}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* FOOTER FIXO */}
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}>
-          <Text style={styles.btnCancelText}>Cancelar</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}><Text style={styles.btnCancelText}>Cancelar</Text></TouchableOpacity>
         <TouchableOpacity style={styles.btnSave} onPress={salvarRegistro} disabled={carregando}>
           {carregando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnSaveText}>Salvar Contagem</Text>}
         </TouchableOpacity>
       </View>
 
-      {/* ================= MODAIS ================= */}
-
-      {/* MODAL DE LOCALIZAÇÃO */}
+      {/* MODAL LOCAL */}
       <Modal visible={modalLocalVisivel} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="location-sharp" size={24} color="#1E3A8A" />
-              <Text style={styles.modalTitle}>Localização</Text>
-            </View>
-            <FlatList 
-              data={areasBd} 
-              keyExtractor={(item) => String(item.id)} 
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.modalItem} onPress={() => { setLocalSelecionadoNome(item.nome); setLocalSelecionadoId(item.id); setModalLocalVisivel(false); }}>
-                  <Text style={styles.modalItemText}>{item.nome}</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                </TouchableOpacity>
-              )} 
-              ListEmptyComponent={<Text style={styles.emptyListText}>Nenhum local cadastrado.</Text>}
-            />
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalLocalVisivel(false)}>
-              <Text style={styles.modalCloseText}>FECHAR</Text>
-            </TouchableOpacity>
+            <FlatList data={areasBd} keyExtractor={(item) => String(item.id)} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.modalItem} onPress={() => { setLocalSelecionadoNome(item.nome); setLocalSelecionadoId(item.id); setModalLocalVisivel(false); }}>
+                <Text style={styles.modalItemText}>{item.nome}</Text>
+              </TouchableOpacity>
+            )} />
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalLocalVisivel(false)}><Text style={styles.modalCloseText}>FECHAR</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL DE FORNECEDOR */}
+      {/* MODAL FORNECEDOR */}
       <Modal visible={modalFornecedorVisivel} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="business" size={24} color="#E6A23C" />
-              <Text style={styles.modalTitle}>Fornecedor</Text>
-            </View>
-            <FlatList 
-              data={listaFornecedoresDoItem} 
-              keyExtractor={(item) => String(item.fornecedores?.id || Math.random())} 
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.modalItem} 
-                  onPress={() => { 
-                    setFornecedorSelecionado(item.fornecedores?.nome || ''); 
-                    setFornecedorId(item.fornecedores?.id || null);
-                    setFatorCaixa(item.fator_caixa || 0);
-                    setFatorPalete(item.fator_palete || 0);
-                    setPesoUnitario(item.peso_unitario_produto || 0);
-                    setModalFornecedorVisivel(false); 
-                  }}
-                >
-                  <Text style={styles.modalItemText}>{item.fornecedores?.nome}</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                </TouchableOpacity>
-              )} 
-              ListEmptyComponent={<Text style={styles.emptyListText}>Nenhum fornecedor.</Text>}
-            />
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalFornecedorVisivel(false)}>
-              <Text style={styles.modalCloseText}>FECHAR</Text>
-            </TouchableOpacity>
+            <FlatList data={listaFornecedoresDoItem} keyExtractor={(item) => String(item.fornecedores?.id || Math.random())} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.modalItem} onPress={() => { 
+                  setFornecedorSelecionado(item.fornecedores?.nome || ''); 
+                  setFornecedorId(item.fornecedores?.id || null);
+                  setFatorCaixa(item.fator_caixa || 0);
+                  setFatorPalete(item.fator_palete || 0);
+                  setPesoUnitario(item.peso_unitario_produto || 0);
+                  setModalFornecedorVisivel(false); 
+                }}>
+                <Text style={styles.modalItemText}>{item.fornecedores?.nome}</Text>
+              </TouchableOpacity>
+            )} />
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setModalFornecedorVisivel(false)}><Text style={styles.modalCloseText}>FECHAR</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL DA CALCULADORA / SOMADOR */}
+      {/* MODAL CALCULADORA */}
       <Modal visible={modalCalcVisivel} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.calcContainer}>
-            <View style={styles.calcHeader}>
-              <Text style={styles.calcTitle}>Somador Em Linha</Text>
-              <TouchableOpacity onPress={() => setModalCalcVisivel(false)}><Ionicons name="close" size={24} color="#64748B" /></TouchableOpacity>
-            </View>
+            <View style={styles.calcHeader}><Text style={styles.calcTitle}>Somador</Text><TouchableOpacity onPress={() => setModalCalcVisivel(false)}><Ionicons name="close" size={24} color="#64748B" /></TouchableOpacity></View>
             <View style={styles.calcInputsRow}>
                 <TextInput style={styles.calcInputPequeno} placeholder="Qtd" value={tempQtd} onChangeText={setTempQtd} keyboardType="numeric" />
-                <Text style={{ fontSize: 18, color: '#94A3B8' }}>×</Text>
-                <TextInput style={styles.calcInputGrande} placeholder="Peso/Valor" value={tempPeso} onChangeText={setTempPeso} keyboardType="numeric" />
+                <TextInput style={styles.calcInputGrande} placeholder="Valor" value={tempPeso} onChangeText={setTempPeso} keyboardType="numeric" />
                 <TouchableOpacity style={styles.btnAddCalc} onPress={adicionarAoCalculo}><Ionicons name="add" size={24} color="#FFF" /></TouchableOpacity>
             </View>
-            <View style={styles.listaScrollArea}>
-                <FlatList data={listaCalculo} keyExtractor={(_, index) => String(index)} renderItem={({ item, index }) => (
-                    <View style={styles.linhaCalculo}>
-                        <Text style={styles.txtLinha}>{item.qtd} × {item.peso} = {(parseFloat(item.qtd.replace(',','.')) * parseFloat(item.peso.replace(',','.'))).toFixed(2)}</Text>
-                        <TouchableOpacity onPress={() => removerDoCalculo(index)}><Ionicons name="trash-outline" size={18} color="#EF4444" /></TouchableOpacity>
-                    </View>
-                )} />
-            </View>
-            <View style={styles.calcFooter}>
-                <View>
-                    <Text style={styles.labelTotalCalc}>TOTAL:</Text>
-                    <Text style={styles.valTotalCalc}>{listaCalculo.reduce((acc, i) => acc + (parseFloat(i.qtd.replace(',','.')) * parseFloat(i.peso.replace(',','.'))), 0).toFixed(2)}</Text>
-                </View>
-                <TouchableOpacity style={styles.btnConfirmarCalc} onPress={confirmarCalculo}><Text style={styles.txtConfirmar}>OK</Text></TouchableOpacity>
-            </View>
+            <FlatList style={{height: 150}} data={listaCalculo} renderItem={({ item, index }) => (
+              <View style={styles.linhaCalculo}>
+                <Text>{item.qtd} × {item.peso} = {(parseFloat(item.qtd.replace(',','.'))*parseFloat(item.peso.replace(',','.'))).toFixed(2)}</Text>
+                <TouchableOpacity onPress={() => removerDoCalculo(index)}><Ionicons name="trash" size={18} color="red" /></TouchableOpacity>
+              </View>
+            )} />
+            <TouchableOpacity style={styles.btnConfirmarCalc} onPress={confirmarCalculo}><Text style={styles.txtConfirmar}>OK</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL DA CÂMERA */}
+      {/* MODAL CAMERA */}
       <Modal visible={modalCameraVisivel} animationType="slide">
-        <CameraView style={{ flex: 1 }} ref={cameraRef} active={modalCameraVisivel}>
+        <CameraView style={{ flex: 1 }} ref={cameraRef}>
           <View style={styles.cameraOverlay}>
             <TouchableOpacity onPress={() => setModalCameraVisivel(false)} style={styles.btnFecharCam}><Ionicons name="close" size={40} color="#FFF" /></TouchableOpacity>
-            <TouchableOpacity style={styles.btnCapturar} onPress={tirarFoto}>
-                <View style={styles.circuloExterno}><View style={styles.circuloInterno} /></View>
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnCapturar} onPress={tirarFoto}><View style={styles.circuloExterno}><View style={styles.circuloInterno} /></View></TouchableOpacity>
           </View>
         </CameraView>
       </Modal>
@@ -461,14 +418,14 @@ export default function TelaDeContagem() {
   );
 }
 
-// ================= COMPONENTES VISUAIS =================
+// ================= COMPONENTES =================
 const CardStepper = ({ label, value, onAdd, onSub, onChangeText, color, defaultVal = 0 }: any) => (
   <View style={[styles.card, { borderLeftColor: color }]}>
     <Text style={styles.cardLabel}>{label}</Text>
     <View style={styles.stepper}>
-        <TouchableOpacity onPress={onSub} style={styles.stepBtnContainer}><Ionicons name="remove" size={20} color="#1E3A8A" /></TouchableOpacity>
-        <TextInput style={styles.stepInput} value={String(value)} onChangeText={onChangeText} keyboardType="numeric" selectTextOnFocus onFocus={() => { if (String(value) === String(defaultVal)) onChangeText(''); }} onBlur={() => { if (value === '') onChangeText(String(defaultVal)); }} />
-        <TouchableOpacity onPress={onAdd} style={styles.stepBtnContainer}><Ionicons name="add" size={20} color="#1E3A8A" /></TouchableOpacity>
+        <TouchableOpacity onPress={onSub}><Ionicons name="remove" size={20} color="#1E3A8A" /></TouchableOpacity>
+        <TextInput style={styles.stepInput} value={String(value)} onChangeText={onChangeText} keyboardType="numeric" selectTextOnFocus />
+        <TouchableOpacity onPress={onAdd}><Ionicons name="add" size={20} color="#1E3A8A" /></TouchableOpacity>
     </View>
   </View>
 );
@@ -476,85 +433,74 @@ const CardStepper = ({ label, value, onAdd, onSub, onChangeText, color, defaultV
 const CardInput = ({ label, value, onChange, color }: any) => (
   <View style={[styles.card, { borderLeftColor: color }]}>
     <Text style={styles.cardLabel}>{label}</Text>
-    <TextInput style={styles.cardInput} value={String(value)} onChangeText={onChange} keyboardType="numeric" selectTextOnFocus onFocus={() => { if (value === '0' || value === 0) onChange(''); }} onBlur={() => { if (value === '') onChange('0'); }} />
+    <TextInput style={styles.cardInput} value={String(value)} onChangeText={onChange} keyboardType="numeric" selectTextOnFocus />
   </View>
 );
 
 const CardCalc = ({ label, value, onChange, color, onPressCalc }: any) => (
   <View style={[styles.card, { borderLeftColor: color }]}>
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={styles.cardLabel}>{label}</Text><TouchableOpacity onPress={onPressCalc} style={styles.btnCalcAbre}><MaterialCommunityIcons name="calculator" size={18} color={color} /></TouchableOpacity></View>
-    <TextInput style={styles.cardInput} value={String(value)} onChangeText={onChange} keyboardType="numeric" selectTextOnFocus onFocus={() => { if (value === '0' || value === 0) onChange(''); }} onBlur={() => { if (value === '') onChange('0'); }} />
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={styles.cardLabel}>{label}</Text><TouchableOpacity onPress={onPressCalc}><MaterialCommunityIcons name="calculator" size={18} color={color} /></TouchableOpacity></View>
+    <TextInput style={styles.cardInput} value={String(value)} onChangeText={onChange} keyboardType="numeric" selectTextOnFocus />
   </View>
 );
 
-// ================= ESTILOS =================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   header: { backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingBottom: 15, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
   headerCenter: { flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 18, color: '#E6A23C', fontWeight: 'bold' },
-  logoSC: { width: 34, height: 34, backgroundColor: '#E6A23C', borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  logoSCText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  headerTitle: { fontSize: 16, color: '#E6A23C', fontWeight: 'bold' },
+  logoSC: { width: 30, height: 30, backgroundColor: '#E6A23C', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  logoSCText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   scrollContent: { padding: 15 },
   topPanel: { marginBottom: 15 },
-  localRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  localBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#E2E8F0', padding: 12, borderRadius: 12, marginRight: 10 },
-  localTextPlaceholder: { fontSize: 14, color: '#64748B', marginLeft: 6 },
-  localTextSelecionado: { fontSize: 14, color: '#1E293B', marginLeft: 6, fontWeight: 'bold' },
-  skuBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, elevation: 1, borderWidth: 1, borderColor: '#E2E8F0' },
-  skuText: { fontSize: 14, fontWeight: 'bold', color: '#1F2937' },
-  fornecedorRow: { backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12, elevation: 1, borderWidth: 1, borderColor: '#E2E8F0' },
-  labelFornecedor: { fontSize: 11, fontWeight: 'bold', color: '#64748B', marginBottom: 6 },
-  fornecedorBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#F1F5F9' },
-  fornecedorTextPlaceholder: { fontSize: 14, color: '#94A3B8' },
-  fornecedorTextSelecionado: { fontSize: 14, color: '#1E3A8A', fontWeight: 'bold' },
+  localRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  localBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#E2E8F0', padding: 10, borderRadius: 10, marginRight: 10 },
+  localTextPlaceholder: { fontSize: 13, color: '#64748B' },
+  localTextSelecionado: { fontSize: 13, color: '#1E293B', fontWeight: 'bold' },
+  skuBadge: { backgroundColor: '#FFFFFF', paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center' },
+  skuText: { fontSize: 12, fontWeight: 'bold' },
+  fornecedorRow: { backgroundColor: '#FFFFFF', padding: 10, borderRadius: 10, elevation: 1 },
+  labelFornecedor: { fontSize: 10, color: '#64748B', marginBottom: 5 },
+  fornecedorBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  fornecedorTextPlaceholder: { fontSize: 13, color: '#94A3B8' },
+  fornecedorTextSelecionado: { fontSize: 13, color: '#1E3A8A', fontWeight: 'bold' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: { backgroundColor: '#FFF', width: '48%', padding: 15, borderRadius: 16, marginBottom: 15, elevation: 2, borderLeftWidth: 4 },
-  cardLabel: { fontSize: 12, fontWeight: 'bold', color: '#64748B', marginBottom: 10 },
-  stepper: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, padding: 4 },
-  stepBtnContainer: { padding: 5, width: 35, alignItems: 'center' },
-  stepInput: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', textAlign: 'center', flex: 1 },
-  cardInput: { fontSize: 22, fontWeight: 'bold', textAlign: 'right', color: '#1E2937', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', marginTop: 5 },
-  obsContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, marginVertical: 5, elevation: 2 },
-  inputObs: { flex: 1, fontSize: 14, height: 55, color: '#1E293B' },
-  btnFoto: { padding: 8, marginLeft: 10 },
-  btnFotoAtivo: { backgroundColor: '#D1FAE5', borderRadius: 20 },
-  finalCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 6, borderLeftColor: '#1E3A8A', marginTop: 15, elevation: 4 },
-  finalLabel: { fontSize: 16, fontWeight: 'bold', color: '#1E3A8A' },
-  finalValue: { fontSize: 32, fontWeight: '900', color: '#0F172A' },
-  footer: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingHorizontal: 20, paddingTop: 15, gap: 15 },
-  btnCancel: { flex: 1, height: 55, alignItems: 'center', justifyContent: 'center' },
-  btnCancelText: { fontSize: 16, color: '#94A3B8', fontWeight: 'bold' },
-  btnSave: { flex: 1.5, backgroundColor: '#E6A23C', height: 55, borderRadius: 12, alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  btnSaveText: { fontSize: 17, color: '#FFF', fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '80%' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', gap: 10 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1E293B' },
-  modalItem: { flexDirection: 'row', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', alignItems: 'center', justifyContent: 'space-between' },
-  modalItemText: { fontSize: 16, color: '#334155', fontWeight: 'bold' },
-  emptyListText: { textAlign: 'center', color: '#94A3B8', marginVertical: 20 },
-  modalCloseBtn: { marginTop: 15, paddingVertical: 15, backgroundColor: '#F8FAFC', borderRadius: 12, alignItems: 'center' },
+  card: { backgroundColor: '#FFF', width: '48%', padding: 12, borderRadius: 12, marginBottom: 12, elevation: 2, borderLeftWidth: 4 },
+  cardLabel: { fontSize: 10, fontWeight: 'bold', color: '#64748B', marginBottom: 5 },
+  stepper: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, padding: 2 },
+  stepInput: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', flex: 1 },
+  cardInput: { fontSize: 18, fontWeight: 'bold', textAlign: 'right', color: '#1E2937' },
+  obsContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 10, elevation: 2 },
+  inputObs: { flex: 1, fontSize: 13, height: 50 },
+  btnFoto: { padding: 5 },
+  btnFotoAtivo: { backgroundColor: '#D1FAE5', borderRadius: 15 },
+  finalCard: { backgroundColor: '#FFF', padding: 15, borderRadius: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 6, borderLeftColor: '#1E3A8A', marginTop: 15, elevation: 4 },
+  finalLabel: { fontSize: 14, fontWeight: 'bold', color: '#1E3A8A' },
+  finalValue: { fontSize: 24, fontWeight: '900' },
+  footer: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingHorizontal: 20, paddingTop: 10 },
+  btnCancel: { flex: 1, height: 50, justifyContent: 'center' },
+  btnCancelText: { color: '#94A3B8', fontWeight: 'bold' },
+  btnSave: { flex: 1.5, backgroundColor: '#E6A23C', height: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  btnSaveText: { color: '#FFF', fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#FFF', width: '85%', borderRadius: 20, padding: 20, maxHeight: '70%' },
+  modalItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalItemText: { fontSize: 15, fontWeight: 'bold' },
+  modalCloseBtn: { marginTop: 10, padding: 10, alignItems: 'center' },
   modalCloseText: { color: '#64748B', fontWeight: 'bold' },
-  btnCalcAbre: { backgroundColor: '#ECFDF5', padding: 6, borderRadius: 8 },
-  calcContainer: { backgroundColor: '#FFF', width: '100%', borderRadius: 20, padding: 20 },
-  calcHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  calcTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
-  calcInputsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
-  calcInputPequeno: { flex: 1, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, fontSize: 16, textAlign: 'center' },
-  calcInputGrande: { flex: 2, backgroundColor: '#F1F5F9', padding: 12, borderRadius: 10, fontSize: 16 },
-  btnAddCalc: { backgroundColor: '#1E3A8A', padding: 12, borderRadius: 10 },
-  listaScrollArea: { height: 160 },
-  linhaCalculo: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  txtLinha: { fontSize: 14, color: '#475569' },
-  calcFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 15 },
-  labelTotalCalc: { fontSize: 12, color: '#94A3B8', fontWeight: 'bold' },
-  valTotalCalc: { fontSize: 24, fontWeight: 'bold', color: '#10B981' },
-  btnConfirmarCalc: { backgroundColor: '#10B981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  txtConfirmar: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-  cameraOverlay: { flex: 1, justifyContent: 'space-between', padding: 30 },
-  btnFecharCam: { alignSelf: 'flex-end', marginTop: 40 },
-  btnCapturar: { alignSelf: 'center', marginBottom: 40 },
-  circuloExterno: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
-  circuloInterno: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFF' },
+  calcContainer: { backgroundColor: '#FFF', width: '90%', borderRadius: 20, padding: 20 },
+  calcHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+  calcTitle: { fontSize: 16, fontWeight: 'bold' },
+  calcInputsRow: { flexDirection: 'row', gap: 10, marginBottom: 15 },
+  calcInputPequeno: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 8, padding: 10 },
+  calcInputGrande: { flex: 2, backgroundColor: '#F1F5F9', borderRadius: 8, padding: 10 },
+  btnAddCalc: { backgroundColor: '#1E3A8A', borderRadius: 8, padding: 10 },
+  linhaCalculo: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderColor: '#EEE' },
+  btnConfirmarCalc: { backgroundColor: '#10B981', padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  txtConfirmar: { color: '#FFF', fontWeight: 'bold' },
+  cameraOverlay: { flex: 1, justifyContent: 'space-between', padding: 20 },
+  btnFecharCam: { alignSelf: 'flex-end' },
+  btnCapturar: { alignSelf: 'center', marginBottom: 30 },
+  circuloExterno: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  circuloInterno: { width: 55, height: 55, borderRadius: 27.5, backgroundColor: '#FFF' },
 });
