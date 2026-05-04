@@ -6,17 +6,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons'; 
 import { useAuth } from '../../src/context/AuthContext'; 
 
+// --- HEADER ATUALIZADO PARA O PADRÃO ADMIN ---
 const HeaderHome = ({ topInset }: { topInset: number }) => (
   <View style={[styles.header, { paddingTop: topInset + 10 }]}>
-    <View style={styles.logoContainer}>
-      <View style={styles.logoSC}><Text style={styles.logoSCText}>SC</Text></View>
-      <View>
-        <Text style={styles.logoSmart}>SMART</Text>
-        <Text style={styles.logoCount}>COUNT</Text>
-      </View>
+    <View style={styles.logoSC}>
+      <Text style={styles.logoSCText}>SC</Text>
     </View>
-    <View style={styles.headerTitleContainer}>
-      <Text style={styles.headerTitle}>Sistemas de Inventário</Text>
+    <View style={styles.headerTextContainer}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+        <Text style={styles.logoSmart}>Smart</Text>
+        <Text style={styles.logoCount}>Count</Text>
+      </View>
+      <Text style={styles.headerSubtitle}>Sistemas de Inventário</Text>
     </View>
   </View>
 );
@@ -116,7 +117,6 @@ export default function TelaInicial() {
         )}
       </View>
 
-      {/* --- BOTÃO ADMIN RESTAURADO E POSICIONADO ACIMA DAS TABS --- */}
       {role?.toUpperCase() === 'ADMIN' && (
         <TouchableOpacity 
           style={[styles.fabAdmin, { bottom: insets.bottom + 110 }]} 
@@ -132,22 +132,45 @@ export default function TelaInicial() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
+  // Ajuste do Header para alinhar à esquerda como no Admin
   header: { 
     backgroundColor: '#FFFFFF', 
-    paddingBottom: 10, 
+    paddingBottom: 15, 
     paddingHorizontal: 20, 
     flexDirection: 'row', 
     alignItems: 'center', 
-    justifyContent: 'space-between', 
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
     elevation: 2 
   },
-  logoContainer: { flexDirection: 'row', alignItems: 'center' },
-  logoSC: { width: 30, height: 30, backgroundColor: '#F59E0B', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
-  logoSCText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-  logoSmart: { color: '#F59E0B', fontSize: 15, fontWeight: 'bold', lineHeight: 16 },
-  logoCount: { color: '#1F2937', fontSize: 11, fontWeight: 'bold', letterSpacing: 1 },
-  headerTitleContainer: { flex: 1, alignItems: 'flex-end' },
-  headerTitle: { fontSize: 9, color: '#94A3B8', fontWeight: 'bold', textTransform: 'uppercase' },
+  logoSC: { 
+    width: 42, 
+    height: 42, 
+    backgroundColor: '#F59E0B', 
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginRight: 12 
+  },
+  logoSCText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
+  headerTextContainer: { justifyContent: 'center' },
+  logoSmart: { 
+    color: '#1E3A8A', // Azul Escuro do Admin
+    fontSize: 22, 
+    fontWeight: '900',
+  },
+  logoCount: { 
+    color: '#F59E0B', // Laranja do Admin
+    fontSize: 22, 
+    fontWeight: '900',
+  },
+  headerSubtitle: { 
+    fontSize: 12, 
+    color: '#64748B', 
+    fontWeight: '700', 
+    marginTop: -2 
+  },
+  
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   sectionTitle: { fontSize: 14, color: '#4B5563', fontWeight: 'bold', marginBottom: 10 },
   
@@ -167,16 +190,20 @@ const styles = StyleSheet.create({
   cardFamilias: { 
     backgroundColor: '#FFFFFF', 
     padding: 12, 
-    borderRadius: 8, 
-    marginBottom: 8, 
+    borderRadius: 10, 
+    marginBottom: 10, 
     borderLeftWidth: 4, 
     borderLeftColor: '#F59E0B',
-    elevation: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   cardTag: { fontSize: 9, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
-  cardDescription: { fontSize: 11, color: '#9CA3AF', marginTop: 1 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  cardDescription: { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
   
   emptyContainer: { alignItems: 'center', marginTop: 40 },
   emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 13 },
@@ -185,13 +212,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 20, 
     backgroundColor: '#1E3A8A', 
-    width: 54,
+    width: 56,
     height: 54,
-    borderRadius: 27,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
-    zIndex: 999, // Garante que fique sobre a Tab Bar
+    zIndex: 999,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
