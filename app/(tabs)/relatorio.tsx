@@ -11,7 +11,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // IMPORTAÇÃO DO CONTEXTO DE AUTENTICAÇÃO
 import { useAuth } from '../../src/context/AuthContext'; 
 
-// Configuração de larguras das colunas
 const COL_ITEM = 3;
 const COL_FISICO = 2;
 const COL_SISTEMA = 2; 
@@ -42,11 +41,20 @@ export default function TelaConsultaSaldos() {
   const supervisores = ['Edevandro', 'Everaldo', 'Fabio', 'Joel', 'Marcelo', 'Samuel'];
 
   const formatarPeso = (valor: number) => {
-    if (valor === undefined || valor === null) return "0,00";
-    return valor.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+    if (valor === undefined || valor === null) return "0,000";
+    return valor.toFixed(3).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
   };
 
-  const formatarMoedaManual = (valor: number) => "R$ " + formatarPeso(valor);
+  const formatarMoedaManual = (valor: number) => "R$ " + valor.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+
+  // Função para tratar data local sem o erro do fuso horário (UTC jump)
+  const formatarDataLocal = (date: Date) => {
+    const d = new Date(date);
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  };
 
   const obterFiltroTurno = (dataBase: Date) => {
     const inicio = new Date(dataBase);
@@ -58,13 +66,10 @@ export default function TelaConsultaSaldos() {
   };
 
   const abrirAuditoria = (item: any) => {
-    const dataString = dataSelecionada.toISOString().split('T')[0];
+    const dataString = formatarDataLocal(dataSelecionada);
     router.push({
       pathname: '/auditoria', 
-      params: { 
-        itemId: item.id, 
-        data: dataString 
-      }
+      params: { itemId: item.internalId, data: dataString }
     });
   };
 
@@ -72,15 +77,18 @@ export default function TelaConsultaSaldos() {
     if (!organizacao_id) return; 
 
     setCarregando(true);
-    const { inicio, fim } = obterFiltroTurno(dataSelecionada);
-    const dataIso = dataSelecionada.toISOString().split('T')[0];
-    const sistemaInicio = `${dataIso}T00:00:00.000Z`;
-    const sistemaFim = `${dataIso}T23:59:59.999Z`;
+    const { inicio: fisInicio, fim: fisFim } = obterFiltroTurno(dataSelecionada);
+    
+    // Tratamento de data blindado contra fuso horário
+    const dataIso = formatarDataLocal(dataSelecionada);
+    const sistInicio = `${dataIso}T00:00:00.000Z`;
+    const sistFim = `${dataIso}T23:59:59.999Z`;
 
     try {
+      // 1. Busca Itens
       let query = supabase
         .from('itens')
-        .select('id, descricao, preco_unitario')
+        .select('id, sku_codigo, descricao, preco_unitario, responsavel')
         .eq('organizacao_id', organizacao_id);
 
       if (supervisorAtivo !== 'Todos') {
@@ -90,31 +98,46 @@ export default function TelaConsultaSaldos() {
       const { data: itens, error: errItens } = await query;
       if (errItens) throw errItens;
 
+      // 2. Busca Contagens (Físico) do turno
       const { data: contagens, error: errCont } = await supabase
         .from('contagens')
         .select('item_id, peso_liquido_calculado, data_hora')
         .eq('organizacao_id', organizacao_id)
-        .gte('data_hora', inicio)
-        .lt('data_hora', fim);
+        .gte('data_hora', fisInicio)
+        .lt('data_hora', fisFim);
 
       if (errCont) throw errCont;
 
+      // 3. Busca Estoque Sistema (Filtro por data exata da imagem)
       const { data: estoqueSistema, error: errSistema } = await supabase
         .from('estoque_sistema') 
         .select('sku_codigo, saldo_sistema, data_atualizacao') 
         .eq('organizacao_id', organizacao_id)
-        .gte('data_atualizacao', sistemaInicio)
-        .lte('data_atualizacao', sistemaFim);
+        .gte('data_atualizacao', sistInicio)
+        .lte('data_atualizacao', sistFim)
+        .order('data_atualizacao', { ascending: false });
 
       if (errSistema) throw errSistema;
+
+      // Dicionário para garantir apenas o registro mais recente por SKU no dia
+      const mapaSistema = new Map();
+      estoqueSistema?.forEach(e => {
+        const sku = String(e.sku_codigo).trim().toUpperCase();
+        if (!mapaSistema.has(sku)) {
+          mapaSistema.set(sku, {
+            saldo: e.saldo_sistema || 0,
+            data: e.data_atualizacao
+          });
+        }
+      });
 
       const listaConsolidada = itens.map(item => {
         const itensFisicos = contagens?.filter(c => c.item_id === item.id) || [];
         const totalFisico = itensFisicos.reduce((acc, curr) => acc + (curr.peso_liquido_calculado || 0), 0);
         
-        const itensSistemaArr = estoqueSistema?.filter(e => String(e.sku_codigo) === String(item.id)) || [];
-        const itemSistema = itensSistemaArr[0];
-        const saldoSistema = itemSistema ? (itemSistema.saldo_sistema || 0) : 0; 
+        const skuLimpo = String(item.sku_codigo || item.id).trim().toUpperCase();
+        const dadosSist = mapaSistema.get(skuLimpo);
+        const saldoSistema = dadosSist ? dadosSist.saldo : 0; 
         
         const desvio = totalFisico - saldoSistema;
         const impacto = desvio * (item.preco_unitario || 0);
@@ -122,12 +145,13 @@ export default function TelaConsultaSaldos() {
         let ultimaModificacao = 0;
         if (itensFisicos.length > 0) {
             ultimaModificacao = Math.max(...itensFisicos.map(c => new Date(c.data_hora).getTime()));
-        } else if (itensSistemaArr.length > 0) {
-            ultimaModificacao = Math.max(...itensSistemaArr.map(s => new Date(s.data_atualizacao).getTime()));
+        } else if (dadosSist) {
+            ultimaModificacao = new Date(dadosSist.data).getTime();
         }
 
         return {
-          id: item.id,
+          id: item.sku_codigo || String(item.id),
+          internalId: item.id,
           descricao: item.descricao,
           fisico: totalFisico,
           sistema: saldoSistema, 
@@ -158,7 +182,7 @@ export default function TelaConsultaSaldos() {
       const termo = busca.toLowerCase();
       resultado = resultado.filter(i => 
         i.id.toLowerCase().includes(termo) || 
-        i.descricao.toLowerCase().includes(termo)
+        i.descricao?.toLowerCase().includes(termo)
       );
     }
 
@@ -199,11 +223,11 @@ export default function TelaConsultaSaldos() {
     const tempoDecorrido = Date.now() - item.ultimaModificacao;
 
     if (tempoDecorrido > cincoHorasEmMs && role !== 'ADMIN') {
-        Alert.alert("⏳ Tempo Expirado", "O prazo de 5 horas para exclusão expirou. Apenas o Administrador pode apagar este registro.");
+        Alert.alert("⏳ Tempo Expirado", "Apenas Administradores podem apagar após 5 horas.");
         return;
     }
 
-    Alert.alert("Zerar Contagem", `Deseja apagar os registros de Físico e Sistema do item ${item.id}?`, [
+    Alert.alert("Zerar Contagem", `Apagar registros de ${item.id}?`, [
         { text: "Cancelar", style: "cancel" },
         { text: "Sim, Zerar", style: "destructive", onPress: () => executarExclusao(item) }
     ]);
@@ -212,14 +236,8 @@ export default function TelaConsultaSaldos() {
   const executarExclusao = async (item: any) => {
     setCarregando(true);
     const { inicio, fim } = obterFiltroTurno(dataSelecionada);
-    const dataIso = dataSelecionada.toISOString().split('T')[0];
-    const sistemaInicio = `${dataIso}T00:00:00.000Z`;
-    const sistemaFim = `${dataIso}T23:59:59.999Z`;
-
     try {
-        await supabase.from('contagens').delete().eq('item_id', item.id).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
-        await supabase.from('estoque_sistema').delete().eq('sku_codigo', item.id).eq('organizacao_id', organizacao_id).gte('data_atualizacao', sistemaInicio).lte('data_atualizacao', sistemaFim);
-
+        await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
         Alert.alert("Sucesso", "Registros zerados!");
         buscarDados(); 
     } catch (error: any) {
@@ -234,7 +252,7 @@ export default function TelaConsultaSaldos() {
     listaProcessada.forEach(i => {
       csv += `${i.id};${i.descricao?.replace(/;/g, ",")};${formatarPeso(i.fisico)};${formatarPeso(i.sistema)};${formatarPeso(i.desvio)};${formatarPeso(i.impacto)}\n`;
     });
-    const uri = FileSystem.documentDirectory + `Consulta_Inventarios_${supervisorAtivo}.csv`;
+    const uri = FileSystem.documentDirectory + `Inventario_${formatarDataLocal(dataSelecionada)}.csv`;
     await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
     await Sharing.shareAsync(uri);
   };
@@ -244,11 +262,7 @@ export default function TelaConsultaSaldos() {
       <StatusBar barStyle="light-content" />
       <View style={styles.headerAzul}>
         <View style={styles.logoTitleRow}>
-          <Image 
-            source={require('../../assets/images/sc_icon.png')} 
-            style={styles.tinyLogo} 
-            resizeMode="contain"
-          />
+          <Image source={require('../../assets/images/icon.png')} style={styles.tinyLogo} resizeMode="contain" />
           <Text style={styles.titlePrincipal}>Consulta de Inventários</Text>
         </View>
         
@@ -261,11 +275,6 @@ export default function TelaConsultaSaldos() {
             onChangeText={setBusca}
             placeholderTextColor="#94A3B8"
           />
-          {busca !== '' && (
-            <TouchableOpacity onPress={() => setBusca('')}>
-              <Ionicons name="close-circle" size={18} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
         </View>
 
         <View style={styles.barraFiltro}>
@@ -274,35 +283,21 @@ export default function TelaConsultaSaldos() {
             <Text style={styles.txtData}>{dataSelecionada.toLocaleDateString('pt-BR')}</Text>
           </TouchableOpacity>
           <View style={styles.acoesHeader}>
-            <TouchableOpacity onPress={exportarCSV} style={styles.iconBtn}>
-              <MaterialCommunityIcons name="file-excel" size={24} color="#FFF" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={buscarDados} style={styles.iconBtn}>
-              <Ionicons name="refresh-circle" size={26} color="#FFF" />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={exportarCSV} style={styles.iconBtn}><MaterialCommunityIcons name="file-excel" size={24} color="#FFF" /></TouchableOpacity>
+            <TouchableOpacity onPress={buscarDados} style={styles.iconBtn}><Ionicons name="refresh-circle" size={26} color="#FFF" /></TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {showDatePicker && (
-        <DateTimePicker value={dataSelecionada} mode="date" display="default" onChange={onChangeDate} />
-      )}
+      {showDatePicker && <DateTimePicker value={dataSelecionada} mode="date" display="default" onChange={onChangeDate} />}
 
       <View style={styles.containerSupervisores}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
-          <TouchableOpacity 
-              onPress={() => { setSupervisorAtivo('Todos'); setBusca(''); }}
-              style={[styles.badge, supervisorAtivo === 'Todos' && styles.badgeAtivo]}
-          >
+          <TouchableOpacity onPress={() => { setSupervisorAtivo('Todos'); setBusca(''); }} style={[styles.badge, supervisorAtivo === 'Todos' && styles.badgeAtivo]}>
             <Text style={[styles.txtBadge, supervisorAtivo === 'Todos' && styles.txtBadgeAtivo]}>Todos</Text>
           </TouchableOpacity>
-
           {supervisores.map(sup => (
-            <TouchableOpacity 
-              key={sup} 
-              onPress={() => { setSupervisorAtivo(sup); setBusca(''); }}
-              style={[styles.badge, supervisorAtivo === sup && styles.badgeAtivo]}
-            >
+            <TouchableOpacity key={sup} onPress={() => { setSupervisorAtivo(sup); setBusca(''); }} style={[styles.badge, supervisorAtivo === sup && styles.badgeAtivo]}>
               <Text style={[styles.txtBadge, supervisorAtivo === sup && styles.txtBadgeAtivo]}>{sup}</Text>
             </TouchableOpacity>
           ))}
@@ -334,13 +329,13 @@ export default function TelaConsultaSaldos() {
       ) : (
         <FlatList
           data={listaProcessada} 
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.internalId.toString()}
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.row} onPress={() => abrirAuditoria(item)}>
               <View style={{ flex: COL_ITEM }}>
                 <Text style={styles.itemCode}>{item.id}</Text>
-                <Text style={styles.itemDesc} numberOfLines={1}>{item.descricao}</Text>
+                <Text style={styles.itemDesc} numberOfLines={1}>{item.descricao || 'SEM DESCRIÇÃO'}</Text>
               </View>
               <View style={{ flex: COL_FISICO, alignItems: 'center' }}>
                 <Text style={styles.valFisico}>{formatarPeso(item.fisico)}</Text>
@@ -354,12 +349,10 @@ export default function TelaConsultaSaldos() {
                     <Ionicons name="alert-circle" size={14} color={item.desvio < 0 ? "#EF4444" : "#F59E0B"} style={{ marginRight: 4 }} />
                   )}
                   <Text style={[styles.valDesvio, { color: item.desvio < 0 ? '#EF4444' : item.desvio > 0 ? '#F59E0B' : '#10B981' }]}>
-                    {item.desvio > 0 ? `+${formatarPeso(item.desvio)}` : formatarPeso(item.desvio)}
+                    {formatarPeso(item.desvio)}
                   </Text>
                 </View>
-                <Text style={[styles.valGrana, { color: item.impacto < 0 ? '#EF4444' : '#64748B' }]}>
-                  {formatarMoedaManual(item.impacto)}
-                </Text>
+                <Text style={[styles.valGrana, { color: item.impacto < 0 ? '#EF4444' : '#64748B' }]}>{formatarMoedaManual(item.impacto)}</Text>
               </View>
               <View style={{ flex: COL_ACAO, alignItems: 'flex-end' }}>
                 {(item.fisico > 0 || item.sistema > 0) && (
