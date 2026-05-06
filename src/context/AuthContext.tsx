@@ -1,13 +1,12 @@
-// src/context/AuthContext.tsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../supabase'; // Verifique se o caminho do seu cliente supabase está correto
+import { Alert } from 'react-native'; // Importação necessária para o aviso
+import { supabase } from '../supabase'; 
 
-// O que nosso "cérebro" vai guardar
 type AuthContextData = {
   session: Session | null;
   user: User | null;
-  organizacao_id: string | null; // A CHAVE DO SAAS
+  organizacao_id: string | null;
   role: string | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -23,7 +22,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Verifica se já existe uma sessão salva ao abrir o app
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -31,15 +29,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    // 2. Escuta mudanças na autenticação (login, logout, senha alterada)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log("Sessão mudou:", _event);
       setSession(session);
       setUser(session?.user ?? null);
+      
       if (session?.user) {
         await fetchPerfil(session.user.id);
       } else {
-        // Se deslogou, limpa tudo
         setOrganizacaoId(null);
         setRole(null);
       }
@@ -51,25 +47,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // 3. A MAGIA DO SAAS: Busca o vínculo da organização na tabela 'perfis'
-  // Nota: Isso só funciona se você tiver rodado os SQLs que configuraram o Thomas como ADMIN
   const fetchPerfil = async (userId: string) => {
     try {
-      console.log("Buscando perfil para:", userId);
+      // 1. Buscamos agora também o campo 'status'
       const { data, error } = await supabase
         .from('perfis')
-        .select('organizacao_id, role')
+        .select('organizacao_id, role, status')
         .eq('id', userId)
         .single();
 
       if (error) throw error;
+
       if (data) {
+        // 2. A TRAVA DE SEGURANÇA: Verifica se o status não é 'ativo'
+        if (data.status !== 'ativo') {
+          await supabase.auth.signOut(); // Desloga o usuário do Supabase
+          
+          // Limpa os estados locais
+          setOrganizacaoId(null);
+          setRole(null);
+          setSession(null);
+          setUser(null);
+
+          Alert.alert(
+            "Acesso Pendente",
+            "Sua conta ainda aguarda liberação do administrador da unidade."
+          );
+          return;
+        }
+
+        // 3. Se estiver ativo, estabelece o vínculo
         setOrganizacaoId(data.organizacao_id);
         setRole(data.role);
-        console.log("Vínculo SaaS estabelecido:", data.organizacao_id, data.role);
       }
     } catch (error) {
       console.error('Erro ao buscar perfil SaaS:', error);
+      // Em caso de erro crítico na busca do perfil, deslogamos por precaução
+      await supabase.auth.signOut();
     }
   };
 
@@ -84,5 +98,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-// Hook personalizado para usar o contexto
 export const useAuth = () => useContext(AuthContext);

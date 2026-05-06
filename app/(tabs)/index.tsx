@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons'; 
 import { useAuth } from '../../src/context/AuthContext'; 
 
-// --- HEADER ATUALIZADO PARA O PADRÃO ADMIN ---
+// --- HEADER PADRÃO ADMIN ---
 const HeaderHome = ({ topInset }: { topInset: number }) => (
   <View style={[styles.header, { paddingTop: topInset + 10 }]}>
     <View style={styles.logoSC}>
@@ -29,7 +29,9 @@ export default function TelaInicial() {
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { role, organizacao_id } = useAuth();
+  
+  // Pegamos a função signOut do AuthContext
+  const { role, organizacao_id, signOut } = useAuth();
 
   useEffect(() => {
     async function buscarFamilias() {
@@ -57,6 +59,23 @@ export default function TelaInicial() {
     const termoBusca = busca.toLowerCase();
     return (item.nome?.toLowerCase() || '').includes(termoBusca);
   });
+
+  // Função para confirmar e executar o logout
+  const handleSair = () => {
+    Alert.alert("Sair", "Deseja realmente sair do sistema?", [
+      { text: "Cancelar", style: "cancel" },
+      { 
+        text: "Sim, Sair", 
+        style: "destructive", 
+        onPress: async () => {
+          await signOut(); 
+          // O AuthContext ou o _layout farão o redirecionamento automático, 
+          // mas por segurança, podemos forçar a ida para o login
+          router.replace('/login');
+        } 
+      }
+    ]);
+  };
 
   return (
     <View style={styles.container}>
@@ -109,7 +128,7 @@ export default function TelaInicial() {
               <View style={styles.emptyContainer}>
                 <Ionicons name="file-tray-outline" size={32} color="#CBD5E1" />
                 <Text style={styles.emptyText}>
-                    {busca ? "Nenhuma família encontrada." : "Aguardando cadastro de famílias."}
+                  {busca ? "Nenhuma família encontrada." : "Aguardando cadastro de famílias."}
                 </Text>
               </View>
             }
@@ -117,6 +136,7 @@ export default function TelaInicial() {
         )}
       </View>
 
+      {/* BOTÃO FLUTUANTE ADMIN (ESQUERDA) */}
       {role?.toUpperCase() === 'ADMIN' && (
         <TouchableOpacity 
           style={[styles.fabAdmin, { bottom: insets.bottom + 110 }]} 
@@ -126,13 +146,21 @@ export default function TelaInicial() {
           <Ionicons name="settings-sharp" size={22} color="#FFFFFF" />
         </TouchableOpacity>
       )}
+
+      {/* NOVO: BOTÃO FLUTUANTE DE SAIR (DIREITA) */}
+      <TouchableOpacity 
+        style={[styles.fabLogout, { bottom: insets.bottom + 110 }]} 
+        onPress={handleSair} 
+        activeOpacity={0.8}
+      >
+        <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  // Ajuste do Header para alinhar à esquerda como no Admin
   header: { 
     backgroundColor: '#FFFFFF', 
     paddingBottom: 15, 
@@ -154,22 +182,9 @@ const styles = StyleSheet.create({
   },
   logoSCText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
   headerTextContainer: { justifyContent: 'center' },
-  logoSmart: { 
-    color: '#1E3A8A', // Azul Escuro do Admin
-    fontSize: 22, 
-    fontWeight: '900',
-  },
-  logoCount: { 
-    color: '#F59E0B', // Laranja do Admin
-    fontSize: 22, 
-    fontWeight: '900',
-  },
-  headerSubtitle: { 
-    fontSize: 12, 
-    color: '#64748B', 
-    fontWeight: '700', 
-    marginTop: -2 
-  },
+  logoSmart: { color: '#1E3A8A', fontSize: 22, fontWeight: '900' },
+  logoCount: { color: '#F59E0B', fontSize: 22, fontWeight: '900' },
+  headerSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '700', marginTop: -2 },
   
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   sectionTitle: { fontSize: 14, color: '#4B5563', fontWeight: 'bold', marginBottom: 10 },
@@ -195,10 +210,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4, 
     borderLeftColor: '#F59E0B',
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
   cardTag: { fontSize: 9, color: '#9CA3AF', fontWeight: 'bold', textTransform: 'uppercase' },
@@ -213,15 +224,25 @@ const styles = StyleSheet.create({
     left: 20, 
     backgroundColor: '#1E3A8A', 
     width: 56,
-    height: 54,
+    height: 56,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
+    elevation: 5,
     zIndex: 999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+  },
+  
+  // Estilo do Botão de Sair na Direita
+  fabLogout: {
+    position: 'absolute',
+    right: 20, 
+    backgroundColor: '#EF4444', // Vermelho (Danger)
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    zIndex: 999,
   },
 });

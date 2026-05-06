@@ -31,17 +31,19 @@ export default function TelaEditarContagem() {
   const [fatores, setFatores] = useState({ palete: 0, caixa: 0, unitario: 0 });
 
   const [modalCalcVisivel, setModalCalcVisivel] = useState(false);
-  const [listaCalculo, setListaCalculo] = useState<{qtd: string, peso: string}[]>([]);
-  const [tempQtd, setTempQtd] = useState('');
-  const [tempPeso, setTempPeso] = useState('');
 
   const formatarPeso = (valor: number) => {
     return valor.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
   };
 
+  // CORREÇÃO: Função lerNumero blindada contra vírgulas
   const lerNumero = (valor: any) => {
-    if (valor === '' || valor === null || valor === undefined || isNaN(valor)) return 0;
-    return parseFloat(String(valor).replace(',', '.')) || 0;
+    if (valor === '' || valor === null || valor === undefined) return 0;
+    // Primeiro removemos a vírgula para converter para o padrão decimal (ponto)
+    const stringLimpa = String(valor).replace(',', '.');
+    const numero = parseFloat(stringLimpa);
+    // Se não for um número válido, retorna 0 em vez de NaN
+    return isNaN(numero) ? 0 : numero;
   };
 
   const carregarDados = async () => {
@@ -63,6 +65,7 @@ export default function TelaEditarContagem() {
         const { data: eng } = await supabase.from('item_fornecedor').select('*').eq('item_id', data.item_id).limit(1).maybeSingle();
         if (eng) setFatores({ palete: eng.fator_palete || 0, caixa: eng.fator_caixa || 0, unitario: eng.peso_unitario_produto || 0 });
 
+        // Carregamos os valores formatando ponto por vírgula para exibição amigável
         setTubetes(String(det.tubetes ?? '0'));
         setLaminas(String(det.laminas ?? '0'));
         setPaletes(String(det.paletes ?? '0'));
@@ -72,6 +75,7 @@ export default function TelaEditarContagem() {
         setEmLinha(String(data.em_linha ?? '0').replace('.', ','));
         setPesoLiquido(data.peso_liquido_calculado || 0);
         setObs(data.observacao || '');
+        
         if (data.foto_url) {
           const { data: urlData } = supabase.storage.from('fotos_contagem').getPublicUrl(data.foto_url);
           setFotoUrl(urlData.publicUrl);
@@ -85,8 +89,10 @@ export default function TelaEditarContagem() {
 
   useEffect(() => { carregarDados(); }, [id]); 
 
+  // Efeito de Cálculo em tempo real
   useEffect(() => {
-    if (carregando) return;
+    if (carregando || !itemData) return;
+
     const bruto = lerNumero(pesoBruto);
     const taraVal = lerNumero(tara);
     const nTub = lerNumero(tubetes);
@@ -125,6 +131,7 @@ export default function TelaEditarContagem() {
           caixas: parseInt(String(caixas)) || 0,
           avulsas_em_linha: lerNumero(emLinha)
       };
+      
       if (metodologia === 'BOBINA_KG') {
           payloadDetalhes.tubetes = parseInt(String(tubetes)) || 0;
           payloadDetalhes.tara_tubete = lerNumero(tara);
@@ -132,19 +139,25 @@ export default function TelaEditarContagem() {
       } else {
           payloadDetalhes.taras = lerNumero(tara);
       }
-      await supabase.from('contagens').update({
+
+      const { error } = await supabase.from('contagens').update({
         peso_bruto: lerNumero(pesoBruto),
         em_linha: lerNumero(emLinha),
         peso_liquido_calculado: pesoLiquido,
         observacao: obs,
         detalhes_contagem: payloadDetalhes
       }).eq('id', id);
+
+      if (error) throw error;
+
       Alert.alert("Sucesso", "Atualizado!");
       router.back();
-    } catch (err: any) { Alert.alert("Erro", "Falha ao salvar."); }
+    } catch (err: any) { 
+      Alert.alert("Erro", "Falha ao salvar: " + err.message); 
+    }
   };
 
-  if (carregando) return <View style={styles.center}><ActivityIndicator size="large" color="#005b9f" /></View>;
+  if (carregando) return <View style={styles.center}><ActivityIndicator size="large" color="#1E3A8A" /></View>;
 
   return (
     <View style={styles.container}>
@@ -183,9 +196,13 @@ export default function TelaEditarContagem() {
           <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: '#10B981', width: '100%' }]}>
             <View style={styles.cardHeaderSmall}>
                 <Text style={styles.cardLabel}>EM LINHA (KG)</Text>
-                <TouchableOpacity onPress={() => setModalCalcVisivel(true)}><MaterialCommunityIcons name="calculator-variant" size={18} color="#10B981" /></TouchableOpacity>
             </View>
-            <TextInput style={styles.cardInput} value={String(emLinha)} onChangeText={setEmLinha} keyboardType="numeric" />
+            <TextInput 
+              style={styles.cardInput} 
+              value={String(emLinha)} 
+              onChangeText={setEmLinha} 
+              keyboardType="numeric" 
+            />
           </View>
         </View>
 
@@ -198,11 +215,13 @@ export default function TelaEditarContagem() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}><Text style={styles.txtCancel}>Cancelar</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.btnSave} onPress={salvar}><Text style={styles.txtSave}>Salvar Alterações</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}>
+          <Text style={styles.txtCancel}>Cancelar</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.btnSave} onPress={salvar}>
+          <Text style={styles.txtSave}>Salvar Alterações</Text>
+        </TouchableOpacity>
       </View>
-
-      {/* Modal Somador simplificado aqui... */}
     </View>
   );
 }
@@ -211,9 +230,13 @@ const CardStepper = ({ label, value, onChangeText, color }: any) => (
   <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: color }]}>
     <Text style={styles.cardLabel}>{label}</Text>
     <View style={styles.stepper}>
-        <TouchableOpacity onPress={() => onChangeText(String(Math.max(0, parseInt(value || '0') - 1)))}><Ionicons name="remove-circle-outline" size={22} color={color} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => onChangeText(String(Math.max(0, parseInt(value || '0') - 1)))}>
+          <Ionicons name="remove-circle-outline" size={22} color={color} />
+        </TouchableOpacity>
         <TextInput style={styles.stepInput} value={String(value)} onChangeText={onChangeText} keyboardType="numeric" />
-        <TouchableOpacity onPress={() => onChangeText(String(parseInt(value || '0') + 1))}><Ionicons name="add-circle-outline" size={22} color={color} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => onChangeText(String(parseInt(value || '0') + 1))}>
+          <Ionicons name="add-circle-outline" size={22} color={color} />
+        </TouchableOpacity>
     </View>
   </View>
 );

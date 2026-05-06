@@ -4,10 +4,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '../../src/supabase';
 
-// PALETA DE CORES OFICIAL SMART COUNT
 const COLORS = {
-  primary: '#1E3A8A', // Azul Tech
-  accent: '#F59E0B',  // Laranja Industrial
+  primary: '#1E3A8A', 
+  accent: '#F59E0B',  
   text: '#1E293B',
   subtext: '#64748B',
   inputBg: '#F8FAFC',
@@ -20,14 +19,15 @@ export default function TelaCadastro() {
   const [loading, setLoading] = useState(false);
 
   // Estados do formulário
+  const [nome, setNome] = useState(''); // NOVO CAMPO
   const [codigoUnidade, setCodigoUnidade] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleCadastro = async () => {
-    // Validações básicas
-    if (!codigoUnidade || !email || !password) {
+    // Validações básicas atualizadas
+    if (!nome || !codigoUnidade || !email || !password) {
       return Alert.alert("Atenção", "Preencha todos os campos obrigatórios.");
     }
     if (password !== confirmPassword) {
@@ -40,7 +40,7 @@ export default function TelaCadastro() {
     setLoading(true);
 
     try {
-      // 1. Validar o Código da Unidade (YPE-01)
+      // 1. Validar o Código da Unidade
       const { data: org, error: orgError } = await supabase
         .from('organizacoes')
         .select('id, nome')
@@ -49,34 +49,42 @@ export default function TelaCadastro() {
 
       if (orgError || !org) {
         setLoading(false);
-        return Alert.alert("Acesso Negado", "O código da unidade informado é inválido. Verifique com seu gestor.");
+        return Alert.alert("Acesso Negado", "Código da unidade inválido.");
       }
 
-      // 2. Criar conta no Auth do Supabase
+      // 2. Criar conta no Auth com metadados de Nome
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,
+        options: {
+          data: {
+            nome: nome.trim(), // Enviando para o Auth Metadata
+            role: 'CONFERENTE',
+            organizacao_id: org.id
+          }
+        }
       });
 
       if (authError) throw authError;
 
-      // 3. Criar o Perfil vinculado e com status PENDENTE
+      // 3. Criar o Perfil vinculado
       if (authData.user) {
         const { error: profileError } = await supabase
           .from('perfis')
           .insert({
             id: authData.user.id,
+            nome: nome.trim(), // Inserindo nome na tabela perfis
             email: email.trim(),
             organizacao_id: org.id,
             role: 'CONFERENTE',
-            status: 'pendente' // <--- A trava de segurança SaaS
+            status: 'pendente'
           });
 
         if (profileError) throw profileError;
 
         Alert.alert(
           "Solicitação Enviada!",
-          `Seu cadastro foi vinculado à unidade ${org.nome}. Aguarde a aprovação do administrador para acessar o sistema.`,
+          `Seu cadastro (${nome}) foi enviado para a unidade ${org.nome}. Aguarde a aprovação.`,
           [{ text: "Entendido", onPress: () => router.replace('/(auth)/login') }]
         );
       }
@@ -96,15 +104,13 @@ export default function TelaCadastro() {
       <StatusBar barStyle="dark-content" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* BOTÃO VOLTAR COM COR PRIMARY */}
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={28} color={COLORS.primary} />
         </TouchableOpacity>
 
-        {/* LOGO E CABEÇALHO */}
         <View style={styles.header}>
           <Image 
-            source={require('../../assets/images/sc_icon.png')} // Verifique o caminho da sua logo
+            source={require('../../assets/images/sc_icon.png')} 
             style={styles.logo}
             resizeMode="contain"
           />
@@ -114,7 +120,6 @@ export default function TelaCadastro() {
 
         <View style={styles.form}>
           
-          {/* CAMPO CÓDIGO DA UNIDADE - COM DESTAQUE EM LARANJA */}
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
               <MaterialCommunityIcons name="office-building" size={16} color={COLORS.accent} />
@@ -122,7 +127,7 @@ export default function TelaCadastro() {
             </View>
             <TextInput
               style={[styles.input, styles.inputAccent]}
-              placeholder="YPE-01"
+              placeholder="Ex: YPE-01"
               value={codigoUnidade}
               onChangeText={setCodigoUnidade}
               autoCapitalize="characters"
@@ -130,7 +135,19 @@ export default function TelaCadastro() {
             />
           </View>
 
-          {/* DEMAIS CAMPOS - PADRÃO AZUL */}
+          {/* NOVO CAMPO: NOME COMPLETO */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>NOME COMPLETO</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Digite seu nome e sobrenome"
+              value={nome}
+              onChangeText={setNome}
+              autoCapitalize="words"
+              placeholderTextColor="#94A3B8"
+            />
+          </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>E-MAIL CORPORATIVO</Text>
             <TextInput
@@ -168,7 +185,6 @@ export default function TelaCadastro() {
             />
           </View>
 
-          {/* BOTÃO PRIMARY (AZUL TECH) */}
           <TouchableOpacity 
             style={[styles.btnPrimary, loading && { opacity: 0.7 }]} 
             onPress={handleCadastro}
@@ -211,10 +227,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
   },
-  // Borda especial para o campo do código
   inputAccent: {
     borderColor: COLORS.accent,
-    backgroundColor: '#FFFBEB', // Fundo levemente alaranjado
+    backgroundColor: '#FFFBEB',
     fontWeight: 'bold',
     fontSize: 18,
     color: COLORS.accent,
@@ -226,8 +241,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 15,
-    elevation: 3, // Sombra no Android
-    shadowColor: COLORS.primary, // Sombra no iOS
+    elevation: 3,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,

@@ -1,21 +1,18 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView, TextInput, Image, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView, TextInput, Image, StatusBar, Linking } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '../../src/supabase'; 
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 
-// IMPORTAÇÃO DO CONTEXTO DE AUTENTICAÇÃO
+// CONTEXTO DE USUÁRIO
 import { useAuth } from '../../src/context/AuthContext'; 
 
-const COL_ITEM = 3;
+const COL_ITEM = 3.5; 
 const COL_FISICO = 2;
 const COL_SISTEMA = 2; 
-const COL_DESVIO = 2;
-const COL_ACAO = 1;
+const COL_DESVIO = 2.5;
 
 const AZUL_TECH = '#1E3A8A';
 
@@ -41,13 +38,12 @@ export default function TelaConsultaSaldos() {
   const supervisores = ['Edevandro', 'Everaldo', 'Fabio', 'Joel', 'Marcelo', 'Samuel'];
 
   const formatarPeso = (valor: number) => {
-    if (valor === undefined || valor === null) return "0,000";
-    return valor.toFixed(3).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+    if (valor === undefined || valor === null) return "0,0";
+    return valor.toFixed(1).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
   };
 
-  const formatarMoedaManual = (valor: number) => "R$ " + valor.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+  const formatarMoeda = (valor: number) => "R$ " + valor.toFixed(2).replace('.', ',');
 
-  // Função para tratar data local sem o erro do fuso horário (UTC jump)
   const formatarDataLocal = (date: Date) => {
     const d = new Date(date);
     const ano = d.getFullYear();
@@ -66,11 +62,42 @@ export default function TelaConsultaSaldos() {
   };
 
   const abrirAuditoria = (item: any) => {
-    const dataString = formatarDataLocal(dataSelecionada);
     router.push({
       pathname: '/auditoria', 
-      params: { itemId: item.internalId, data: dataString }
+      params: { itemId: item.internalId, data: formatarDataLocal(dataSelecionada) }
     });
+  };
+
+  const confirmarExclusao = (item: any) => {
+    if (!organizacao_id) return;
+    const cincoHorasEmMs = 5 * 60 * 60 * 1000;
+    const tempoDecorrido = Date.now() - item.ultimaModificacao;
+
+    if (tempoDecorrido > cincoHorasEmMs && role !== 'ADMIN') {
+        Alert.alert("⏳ Tempo Expirado", "O prazo de 5h expirou. Somente o Administrador pode apagar este registro.");
+        return;
+    }
+
+    Alert.alert("🚨 Zerar Registro", `Deseja apagar os dados de Físico e Sistema do item ${item.id}?`, [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sim, Zerar", style: "destructive", onPress: () => executarExclusao(item) }
+    ]);
+  };
+
+  const executarExclusao = async (item: any) => {
+    setCarregando(true);
+    const { inicio, fim } = obterFiltroTurno(dataSelecionada);
+    const dataIso = formatarDataLocal(dataSelecionada);
+
+    try {
+        await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
+        await supabase.from('estoque_sistema').delete().eq('sku_codigo', item.id).eq('organizacao_id', organizacao_id).gte('data_atualizacao', `${dataIso}T00:00:00`).lte('data_atualizacao', `${dataIso}T23:59:59`);
+        Alert.alert("Sucesso", "Registros zerados com sucesso!");
+        buscarDados(); 
+    } catch (error: any) {
+        Alert.alert("Erro ao excluir", error.message);
+        setCarregando(false);
+    }
   };
 
   const buscarDados = async () => {
@@ -78,60 +105,26 @@ export default function TelaConsultaSaldos() {
 
     setCarregando(true);
     const { inicio: fisInicio, fim: fisFim } = obterFiltroTurno(dataSelecionada);
-    
-    // Tratamento de data blindado contra fuso horário
     const dataIso = formatarDataLocal(dataSelecionada);
-    const sistInicio = `${dataIso}T00:00:00.000Z`;
-    const sistFim = `${dataIso}T23:59:59.999Z`;
+    const sistInicio = `${dataIso}T00:00:00`;
+    const sistFim = `${dataIso}T23:59:59`;
 
     try {
-      // 1. Busca Itens
-      let query = supabase
-        .from('itens')
-        .select('id, sku_codigo, descricao, preco_unitario, responsavel')
-        .eq('organizacao_id', organizacao_id);
+      let query = supabase.from('itens').select('id, sku_codigo, descricao, preco_unitario, responsavel').eq('organizacao_id', organizacao_id);
+      if (supervisorAtivo !== 'Todos') query = query.eq('responsavel', supervisorAtivo);
+      const { data: itens } = await query;
 
-      if (supervisorAtivo !== 'Todos') {
-        query = query.eq('responsavel', supervisorAtivo);
-      }
+      const { data: contagens } = await supabase.from('contagens').select('item_id, peso_liquido_calculado, data_hora, foto_url, observacao').eq('organizacao_id', organizacao_id).gte('data_hora', fisInicio).lt('data_hora', fisFim);
 
-      const { data: itens, error: errItens } = await query;
-      if (errItens) throw errItens;
+      const { data: estoqueSistema } = await supabase.from('estoque_sistema').select('sku_codigo, saldo_sistema, data_atualizacao').eq('organizacao_id', organizacao_id).gte('data_atualizacao', sistInicio).lte('data_atualizacao', sistFim).order('data_atualizacao', { ascending: false });
 
-      // 2. Busca Contagens (Físico) do turno
-      const { data: contagens, error: errCont } = await supabase
-        .from('contagens')
-        .select('item_id, peso_liquido_calculado, data_hora')
-        .eq('organizacao_id', organizacao_id)
-        .gte('data_hora', fisInicio)
-        .lt('data_hora', fisFim);
-
-      if (errCont) throw errCont;
-
-      // 3. Busca Estoque Sistema (Filtro por data exata da imagem)
-      const { data: estoqueSistema, error: errSistema } = await supabase
-        .from('estoque_sistema') 
-        .select('sku_codigo, saldo_sistema, data_atualizacao') 
-        .eq('organizacao_id', organizacao_id)
-        .gte('data_atualizacao', sistInicio)
-        .lte('data_atualizacao', sistFim)
-        .order('data_atualizacao', { ascending: false });
-
-      if (errSistema) throw errSistema;
-
-      // Dicionário para garantir apenas o registro mais recente por SKU no dia
       const mapaSistema = new Map();
       estoqueSistema?.forEach(e => {
         const sku = String(e.sku_codigo).trim().toUpperCase();
-        if (!mapaSistema.has(sku)) {
-          mapaSistema.set(sku, {
-            saldo: e.saldo_sistema || 0,
-            data: e.data_atualizacao
-          });
-        }
+        if (!mapaSistema.has(sku)) mapaSistema.set(sku, { saldo: e.saldo_sistema || 0, data: e.data_atualizacao });
       });
 
-      const listaConsolidada = itens.map(item => {
+      const consolidado = (itens || []).map(item => {
         const itensFisicos = contagens?.filter(c => c.item_id === item.id) || [];
         const totalFisico = itensFisicos.reduce((acc, curr) => acc + (curr.peso_liquido_calculado || 0), 0);
         
@@ -139,9 +132,6 @@ export default function TelaConsultaSaldos() {
         const dadosSist = mapaSistema.get(skuLimpo);
         const saldoSistema = dadosSist ? dadosSist.saldo : 0; 
         
-        const desvio = totalFisico - saldoSistema;
-        const impacto = desvio * (item.preco_unitario || 0);
-
         let ultimaModificacao = 0;
         if (itensFisicos.length > 0) {
             ultimaModificacao = Math.max(...itensFisicos.map(c => new Date(c.data_hora).getTime()));
@@ -155,43 +145,31 @@ export default function TelaConsultaSaldos() {
           descricao: item.descricao,
           fisico: totalFisico,
           sistema: saldoSistema, 
-          desvio: desvio,
-          impacto: impacto,
-          ultimaModificacao: ultimaModificacao 
+          desvio: totalFisico - saldoSistema,
+          impacto: (totalFisico - saldoSistema) * (item.preco_unitario || 0),
+          temFoto: itensFisicos.some(c => c.foto_url),
+          temObs: itensFisicos.some(c => c.observacao && c.observacao.trim() !== ''),
+          ultimaModificacao
         };
       }); 
 
-      setLista(listaConsolidada);
-    } catch (err: any) {
-      Alert.alert("Erro", err.message);
-    } finally {
-      setCarregando(false);
-    }
+      setLista(consolidado);
+    } catch (err: any) { Alert.alert("Erro", err.message); }
+    finally { setCarregando(false); }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      buscarDados();
-    }, [supervisorAtivo, dataSelecionada, organizacao_id])
-  );
+  useFocusEffect(useCallback(() => { buscarDados(); }, [supervisorAtivo, dataSelecionada]));
 
   const listaProcessada = useMemo(() => {
     let resultado = [...lista];
-
     if (busca) {
       const termo = busca.toLowerCase();
-      resultado = resultado.filter(i => 
-        i.id.toLowerCase().includes(termo) || 
-        i.descricao?.toLowerCase().includes(termo)
-      );
+      resultado = resultado.filter(i => i.id.toLowerCase().includes(termo) || i.descricao?.toLowerCase().includes(termo));
     }
-
     if (sortConfig.key) {
       resultado.sort((a, b) => {
         let valA = a[sortConfig.key];
         let valB = b[sortConfig.key];
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
@@ -201,80 +179,33 @@ export default function TelaConsultaSaldos() {
   }, [lista, busca, sortConfig]);
 
   const alternarOrdem = (key: SortConfig['key']) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
+    setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };
 
-  const renderSortIcon = (key: SortConfig['key']) => {
-    if (sortConfig.key !== key) return <Ionicons name="swap-vertical" size={12} color="#CBD5E1" />;
-    return <Ionicons name={sortConfig.direction === 'asc' ? "arrow-up" : "arrow-down"} size={12} color={AZUL_TECH} />;
-  };
-
-  const onChangeDate = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) setDataSelecionada(selectedDate);
-  };
-
-  const confirmarExclusao = (item: any) => {
-    if (!organizacao_id) return;
-    const cincoHorasEmMs = 5 * 60 * 60 * 1000;
-    const tempoDecorrido = Date.now() - item.ultimaModificacao;
-
-    if (tempoDecorrido > cincoHorasEmMs && role !== 'ADMIN') {
-        Alert.alert("⏳ Tempo Expirado", "Apenas Administradores podem apagar após 5 horas.");
-        return;
-    }
-
-    Alert.alert("Zerar Contagem", `Apagar registros de ${item.id}?`, [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Sim, Zerar", style: "destructive", onPress: () => executarExclusao(item) }
-    ]);
-  };
-
-  const executarExclusao = async (item: any) => {
-    setCarregando(true);
-    const { inicio, fim } = obterFiltroTurno(dataSelecionada);
-    try {
-        await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
-        Alert.alert("Sucesso", "Registros zerados!");
-        buscarDados(); 
-    } catch (error: any) {
-        Alert.alert("Erro ao excluir", error.message);
-        setCarregando(false);
-    }
-  };
-
-  const exportarCSV = async () => {
+  const enviarWhatsapp = () => {
     if (listaProcessada.length === 0) return;
-    let csv = "ITEM;DESCRICAO;FISICO;SISTEMA;DESVIO;IMPACTO (R$)\n";
-    listaProcessada.forEach(i => {
-      csv += `${i.id};${i.descricao?.replace(/;/g, ",")};${formatarPeso(i.fisico)};${formatarPeso(i.sistema)};${formatarPeso(i.desvio)};${formatarPeso(i.impacto)}\n`;
+    let mensagem = `*📊 RELATÓRIO SMARTCOUNT*\n📅 Data: ${dataSelecionada.toLocaleDateString('pt-BR')}\n👤 Sup: ${supervisorAtivo}\n----------------------------\n\n`;
+    listaProcessada.slice(0, 25).forEach(i => {
+      mensagem += `🔸 *${i.id}*\n🏷️ _${i.descricao || 'Sem desc.'}_\nFísico: ${formatarPeso(i.fisico)} | Sist: ${formatarPeso(i.sistema)}\nDesvio: *${formatarPeso(i.desvio)}* | R$: ${formatarMoeda(i.impacto)}\n\n`;
     });
-    const uri = FileSystem.documentDirectory + `Inventario_${formatarDataLocal(dataSelecionada)}.csv`;
-    await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-    await Sharing.shareAsync(uri);
+    Linking.openURL(`whatsapp://send?text=${encodeURIComponent(mensagem)}`);
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.headerAzul}>
-        <View style={styles.logoTitleRow}>
-          <Image source={require('../../assets/images/icon.png')} style={styles.tinyLogo} resizeMode="contain" />
-          <Text style={styles.titlePrincipal}>Consulta de Inventários</Text>
+        <View style={styles.logoRow}>
+          <Image source={require('../../assets/images/icon.png')} style={styles.tinyLogo} />
+          <View>
+            <Text style={styles.titlePrincipal}>Painel de Inventário</Text>
+            <Text style={styles.subtitle}>Relatório Completo de Desvios</Text>
+          </View>
         </View>
         
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color="#94A3B8" />
-          <TextInput 
-            style={styles.inputBusca}
-            placeholder="Buscar por código ou descrição..."
-            value={busca}
-            onChangeText={setBusca}
-            placeholderTextColor="#94A3B8"
-          />
+          <TextInput style={styles.inputBusca} placeholder="Código ou descrição..." value={busca} onChangeText={setBusca} placeholderTextColor="#94A3B8" />
         </View>
 
         <View style={styles.barraFiltro}>
@@ -283,21 +214,18 @@ export default function TelaConsultaSaldos() {
             <Text style={styles.txtData}>{dataSelecionada.toLocaleDateString('pt-BR')}</Text>
           </TouchableOpacity>
           <View style={styles.acoesHeader}>
-            <TouchableOpacity onPress={exportarCSV} style={styles.iconBtn}><MaterialCommunityIcons name="file-excel" size={24} color="#FFF" /></TouchableOpacity>
-            <TouchableOpacity onPress={buscarDados} style={styles.iconBtn}><Ionicons name="refresh-circle" size={26} color="#FFF" /></TouchableOpacity>
+            <TouchableOpacity onPress={enviarWhatsapp} style={styles.iconBtn}><Ionicons name="logo-whatsapp" size={24} color="#25D366" /></TouchableOpacity>
+            <TouchableOpacity onPress={buscarDados} style={styles.iconBtn}><Ionicons name="refresh-outline" size={24} color="#FFF" /></TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {showDatePicker && <DateTimePicker value={dataSelecionada} mode="date" display="default" onChange={onChangeDate} />}
+      {showDatePicker && <DateTimePicker value={dataSelecionada} mode="date" onChange={(e, d) => { setShowDatePicker(false); if(d) setDataSelecionada(d); }} />}
 
       <View style={styles.containerSupervisores}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
-          <TouchableOpacity onPress={() => { setSupervisorAtivo('Todos'); setBusca(''); }} style={[styles.badge, supervisorAtivo === 'Todos' && styles.badgeAtivo]}>
-            <Text style={[styles.txtBadge, supervisorAtivo === 'Todos' && styles.txtBadgeAtivo]}>Todos</Text>
-          </TouchableOpacity>
-          {supervisores.map(sup => (
-            <TouchableOpacity key={sup} onPress={() => { setSupervisorAtivo(sup); setBusca(''); }} style={[styles.badge, supervisorAtivo === sup && styles.badgeAtivo]}>
+          {['Todos', ...supervisores].map(sup => (
+            <TouchableOpacity key={sup} onPress={() => setSupervisorAtivo(sup)} style={[styles.badge, supervisorAtivo === sup && styles.badgeAtivo]}>
               <Text style={[styles.txtBadge, supervisorAtivo === sup && styles.txtBadgeAtivo]}>{sup}</Text>
             </TouchableOpacity>
           ))}
@@ -306,64 +234,56 @@ export default function TelaConsultaSaldos() {
 
       <View style={styles.tableHeader}>
         <TouchableOpacity style={[styles.headBtn, { flex: COL_ITEM }]} onPress={() => alternarOrdem('id')}>
-          <Text style={styles.txtHead}>Item</Text>
-          {renderSortIcon('id')}
+          <Text style={styles.txtHead}>Item / Aud.</Text>
+          <Ionicons name={sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.headBtn, { flex: COL_FISICO, justifyContent: 'center' }]} onPress={() => alternarOrdem('fisico')}>
-          <Text style={styles.txtHead}>Físico</Text>
-          {renderSortIcon('fisico')}
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.headBtn, { flex: COL_SISTEMA, justifyContent: 'center' }]} onPress={() => alternarOrdem('sistema')}>
-          <Text style={styles.txtHead}>Sistema</Text>
-          {renderSortIcon('sistema')}
-        </TouchableOpacity>
+        <Text style={[styles.txtHead, { flex: COL_FISICO, textAlign: 'center' }]}>Físico</Text>
+        <Text style={[styles.txtHead, { flex: COL_SISTEMA, textAlign: 'center' }]}>Sistema</Text>
         <TouchableOpacity style={[styles.headBtn, { flex: COL_DESVIO, justifyContent: 'flex-end' }]} onPress={() => alternarOrdem('desvio')}>
           <Text style={styles.txtHead}>Desvio</Text>
-          {renderSortIcon('desvio')}
+          <Ionicons name={sortConfig.key === 'desvio' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
         </TouchableOpacity>
-        <View style={{ flex: COL_ACAO }} />
       </View>
 
-      {carregando ? (
-        <ActivityIndicator size="large" color={AZUL_TECH} style={{ marginTop: 50 }} />
-      ) : (
+      {carregando ? <ActivityIndicator size="large" color={AZUL_TECH} style={{ marginTop: 50 }} /> : (
         <FlatList
           data={listaProcessada} 
           keyExtractor={item => item.internalId.toString()}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          contentContainerStyle={{ paddingBottom: 100 }}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.row} onPress={() => abrirAuditoria(item)}>
               <View style={{ flex: COL_ITEM }}>
                 <Text style={styles.itemCode}>{item.id}</Text>
-                <Text style={styles.itemDesc} numberOfLines={1}>{item.descricao || 'SEM DESCRIÇÃO'}</Text>
+                <Text style={styles.itemDesc} numberOfLines={2}>{item.descricao || 'S/ DESCRIÇÃO'}</Text>
               </View>
-              <View style={{ flex: COL_FISICO, alignItems: 'center' }}>
-                <Text style={styles.valFisico}>{formatarPeso(item.fisico)}</Text>
-              </View>
-              <View style={{ flex: COL_SISTEMA, alignItems: 'center' }}>
-                <Text style={styles.valSistema}>{formatarPeso(item.sistema)}</Text>
-              </View>
-              <View style={{ flex: COL_DESVIO, alignItems: 'flex-end', paddingRight: 5 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {item.desvio !== 0 && (
-                    <Ionicons name="alert-circle" size={14} color={item.desvio < 0 ? "#EF4444" : "#F59E0B"} style={{ marginRight: 4 }} />
-                  )}
-                  <Text style={[styles.valDesvio, { color: item.desvio < 0 ? '#EF4444' : item.desvio > 0 ? '#F59E0B' : '#10B981' }]}>
-                    {formatarPeso(item.desvio)}
-                  </Text>
+              
+              <Text style={[styles.valText, { flex: COL_FISICO, textAlign: 'center' }]}>{formatarPeso(item.fisico)}</Text>
+              <Text style={[styles.valText, { flex: COL_SISTEMA, textAlign: 'center', color: '#64748B' }]}>{formatarPeso(item.sistema)}</Text>
+              
+              <View style={{ flex: COL_DESVIO, alignItems: 'flex-end' }}>
+                <Text style={[styles.valDesvio, { color: item.desvio < 0 ? '#EF4444' : item.desvio > 0 ? '#F59E0B' : '#10B981' }]}>
+                  {item.desvio > 0 ? `+${formatarPeso(item.desvio)}` : formatarPeso(item.desvio)}
+                </Text>
+                <Text style={[styles.valGrana, { color: item.impacto < 0 ? '#EF4444' : '#64748B' }]}>{formatarMoeda(item.impacto)}</Text>
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    {(item.temFoto || item.temObs) && (
+                      <View style={styles.containerAlerta}>
+                        {item.temFoto && <Ionicons name="camera" size={12} color="#B45309" />}
+                        {item.temObs && <MaterialCommunityIcons name="file-document-edit" size={12} color="#B45309" style={item.temFoto ? {marginLeft: 2} : {}} />}
+                      </View>
+                    )}
+                    
+                    {/* TRAVA DE RENDERIZAÇÃO DA LIXEIRA AQUI */}
+                    {(item.fisico > 0 || item.sistema > 0) && (
+                      <TouchableOpacity onPress={() => confirmarExclusao(item)} style={styles.btnTrash}>
+                          <Ionicons name="trash-outline" size={18} color="#CBD5E1" />
+                      </TouchableOpacity>
+                    )}
                 </View>
-                <Text style={[styles.valGrana, { color: item.impacto < 0 ? '#EF4444' : '#64748B' }]}>{formatarMoedaManual(item.impacto)}</Text>
-              </View>
-              <View style={{ flex: COL_ACAO, alignItems: 'flex-end' }}>
-                {(item.fisico > 0 || item.sistema > 0) && (
-                  <TouchableOpacity onPress={() => confirmarExclusao(item)} style={styles.btnTrash}>
-                    <Ionicons name="trash-outline" size={20} color="#CBD5E1" />
-                  </TouchableOpacity>
-                )}
               </View>
             </TouchableOpacity>
           )}
-          ListEmptyComponent={<Text style={styles.emptyText}>Sem dados para este filtro.</Text>}
         />
       )}
     </View>
@@ -372,32 +292,32 @@ export default function TelaConsultaSaldos() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
-  headerAzul: { backgroundColor: AZUL_TECH, paddingTop: 55, paddingBottom: 20, paddingHorizontal: 20 },
-  logoTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 10 },
-  tinyLogo: { width: 30, height: 30 },
-  titlePrincipal: { fontSize: 20, fontWeight: 'bold', color: '#FFF' },
-  searchBar: { backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, height: 45, marginBottom: 15 },
-  inputBusca: { flex: 1, marginLeft: 10, fontSize: 14, color: '#1E293B' },
-  barraFiltro: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10 },
-  dataContainer: { flexDirection: 'row', alignItems: 'center', padding: 4 },
-  txtData: { color: '#FFF', fontSize: 16, fontWeight: 'bold', marginLeft: 10 },
+  headerAzul: { backgroundColor: AZUL_TECH, paddingTop: 50, paddingBottom: 15, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  tinyLogo: { width: 35, height: 35, marginRight: 12 },
+  titlePrincipal: { fontSize: 18, fontWeight: 'bold', color: '#FFF' },
+  subtitle: { fontSize: 11, color: '#BFDBFE' },
+  searchBar: { backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 12, height: 40, marginVertical: 10 },
+  inputBusca: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1E293B' },
+  barraFiltro: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
+  dataContainer: { flexDirection: 'row', alignItems: 'center' },
+  txtData: { color: '#FFF', fontSize: 15, fontWeight: 'bold', marginLeft: 8 },
   acoesHeader: { flexDirection: 'row', gap: 15 },
-  iconBtn: { padding: 2 },
-  containerSupervisores: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  badge: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, backgroundColor: '#F1F5F9', marginRight: 8 },
+  iconBtn: { padding: 4 },
+  containerSupervisores: { paddingVertical: 12, backgroundColor: '#F8FAFC' },
+  badge: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#E2E8F0', marginRight: 8 },
   badgeAtivo: { backgroundColor: AZUL_TECH },
-  txtBadge: { fontSize: 14, fontWeight: 'bold', color: '#64748B' },
+  txtBadge: { fontSize: 13, fontWeight: 'bold', color: '#64748B' },
   txtBadgeAtivo: { color: '#FFF' },
-  tableHeader: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 12, backgroundColor: '#F8FAFC', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  tableHeader: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   headBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  txtHead: { fontSize: 11, fontWeight: '900', color: '#94A3B8', textTransform: 'uppercase' },
-  row: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', alignItems: 'center' },
-  itemCode: { fontSize: 15, fontWeight: 'bold', color: AZUL_TECH },
-  itemDesc: { fontSize: 10, color: '#94A3B8', textTransform: 'uppercase', marginTop: 2 },
-  valFisico: { fontSize: 14, fontWeight: 'bold', color: '#1E293B' },
-  valSistema: { fontSize: 14, fontWeight: '600', color: '#64748B' }, 
-  valDesvio: { fontSize: 14, fontWeight: 'bold' },
-  valGrana: { fontSize: 10, fontWeight: 'bold', marginTop: 2 },
-  btnTrash: { padding: 5 }, 
-  emptyText: { textAlign: 'center', marginTop: 40, color: '#94A3B8' }
+  txtHead: { fontSize: 11, fontWeight: 'bold', color: '#94A3B8', textTransform: 'uppercase' },
+  row: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC', alignItems: 'center' },
+  itemCode: { fontSize: 15, fontWeight: '900', color: AZUL_TECH }, 
+  itemDesc: { fontSize: 11, color: '#64748B', marginTop: 4, width: '95%' }, 
+  valText: { fontSize: 15, fontWeight: '700' }, 
+  valDesvio: { fontSize: 15, fontWeight: '900' }, 
+  valGrana: { fontSize: 11, fontWeight: 'bold', marginTop: 2 }, 
+  containerAlerta: { flexDirection: 'row', backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A' },
+  btnTrash: { padding: 4 }
 });
