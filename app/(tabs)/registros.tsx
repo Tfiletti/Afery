@@ -1,24 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, StatusBar, TextInput } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, StatusBar, TextInput, Image } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons'; 
 import { supabase } from '../../src/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 
-// 1. IMPORTAÇÃO DO NOSSO CÉREBRO SAAS (O Crachá)
+// 1. IMPORTAÇÃO DO NOSSO CÉREBRO SAAS
 import { useAuth } from '../../src/context/AuthContext'; 
 
 export default function TelaRegistros() {
   const [registros, setRegistros] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
-  
-  // NOVA STATE: Guarda o que o usuário digitou na busca
   const [busca, setBusca] = useState(''); 
   
   const router = useRouter();
   const insets = useSafeAreaInsets(); 
-  
-  // 2. PUXANDO O ID DA ORGANIZAÇÃO (Ypê)
   const { organizacao_id } = useAuth(); 
 
   const formatarPeso = (valor: number) => {
@@ -44,7 +40,6 @@ export default function TelaRegistros() {
   };
 
   async function buscarRegistros() {
-    // 3. TRAVA DE SEGURANÇA: Se não tem org_id, nem bate no banco
     if (!organizacao_id) return; 
 
     setCarregando(true);
@@ -54,7 +49,7 @@ export default function TelaRegistros() {
       const { data, error } = await supabase
         .from('contagens')
         .select('*, itens(*), areas(*)')
-        .eq('organizacao_id', organizacao_id) // 4. A CHAVE MESTRA: Filtra só a sua fábrica!
+        .eq('organizacao_id', organizacao_id)
         .gte('data_hora', inicio)
         .lte('data_hora', fim)
         .order('data_hora', { ascending: false });
@@ -71,19 +66,14 @@ export default function TelaRegistros() {
   useFocusEffect(
     useCallback(() => {
       buscarRegistros();
-    }, [organizacao_id]) // Recarrega se o org_id mudar
+    }, [organizacao_id])
   );
 
-  // LOGICA DO FILTRO LOCAL:
-  // Só mostra os registros que baterem com o texto da busca (por Código ou Descrição)
   const registrosFiltrados = registros.filter((item) => {
-    if (busca === '') return true; // Se a busca tá vazia, mostra tudo
-    
+    if (busca === '') return true; 
     const termoBusca = busca.toLowerCase();
-    // <-- Atualizado para o novo nome da coluna
     const codSistema = item.itens?.sku_codigo?.toLowerCase() || '';
     const desc = item.itens?.descricao?.toLowerCase() || '';
-    
     return codSistema.includes(termoBusca) || desc.includes(termoBusca);
   });
 
@@ -91,19 +81,30 @@ export default function TelaRegistros() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      {/* HEADER DINÂMICO E BARRA DE BUSCA */}
+      {/* HEADER PADRÃO AFERY */}
       <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
+        <View style={styles.brandContainer}>
+          <Image 
+            source={require('../../assets/images/icon.png')} 
+            style={styles.logoIcon} 
+            resizeMode="contain" 
+          />
+          <View>
+            <Text style={styles.logoAFERY}>AFERY</Text>
+            <Text style={styles.headerSubtitle}>Registros de Contagem</Text>
+          </View>
+        </View>
+
         <View style={styles.headerContent}>
-            <Ionicons name="time-outline" size={16} color="#0369A1" />
+            <Ionicons name="time-outline" size={14} color="#1E3A8A" />
             <Text style={styles.txtCiclo}> Ciclo: 05h às 05h ({obterFiltroTurno().exibicao})</Text>
         </View>
 
-        {/* --- CAMPO DE PESQUISA --- */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar por código ou descrição..." // <-- Atualizado
+            placeholder="Buscar por código ou descrição..." 
             placeholderTextColor="#94A3B8"
             value={busca}
             onChangeText={setBusca}
@@ -115,15 +116,12 @@ export default function TelaRegistros() {
             </TouchableOpacity>
           )}
         </View>
-        {/* ------------------------- */}
-
       </View>
 
       <FlatList 
-        // Usando a lista filtrada em vez da lista crua
         data={registrosFiltrados}
         keyExtractor={(item) => item.id.toString()}
-        refreshControl={<RefreshControl refreshing={carregando} onRefresh={buscarRegistros} color="#005b9f" />}
+        refreshControl={<RefreshControl refreshing={carregando} onRefresh={buscarRegistros} color="#1E3A8A" />}
         contentContainerStyle={{ 
             paddingBottom: insets.bottom + 120,
             paddingTop: 10
@@ -137,7 +135,6 @@ export default function TelaRegistros() {
             <View style={styles.cardHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.txtArea}>📍 {item.areas?.nome || 'Sem Área'}</Text>
-                {/* <-- Atualizado para puxar o sku_codigo e usar a nova classe de estilo */}
                 <Text style={styles.txtCodigoSistema}>{item.itens?.sku_codigo}</Text>
               </View>
               
@@ -147,7 +144,7 @@ export default function TelaRegistros() {
                 <View style={styles.iconRow}>
                   {item.foto_url && (
                     <View style={styles.badgeIcon}>
-                        <Ionicons name="camera" size={12} color="#005b9f" />
+                        <Ionicons name="camera" size={12} color="#1E3A8A" />
                     </View>
                   )}
                   {item.observacao && item.observacao !== '' && item.observacao !== 'EMPTY' && (
@@ -195,19 +192,39 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
   },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  logoIcon: {
+    width: 38,
+    height: 38,
+    marginRight: 10
+  },
+  logoAFERY: {
+    color: '#1E3A8A',
+    fontSize: 20,
+    fontWeight: '900'
+  },
+  headerSubtitle: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: -2
+  },
   headerContent: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'center',
     backgroundColor: '#E0F2FE',
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderRadius: 20,
-    alignSelf: 'center',
-    paddingHorizontal: 15
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12
   },
-  txtCiclo: { fontSize: 11, fontWeight: 'bold', color: '#0369A1' },
-  
-  // Estilos da nova barra de pesquisa
+  txtCiclo: { fontSize: 10, fontWeight: 'bold', color: '#1E3A8A' },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,14 +234,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
     height: 45,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    color: '#1E293B',
-    fontWeight: '500',
-  },
-
+  searchInput: { flex: 1, marginLeft: 10, fontSize: 14, color: '#1E293B', fontWeight: '500' },
   card: { 
     backgroundColor: '#FFF', 
     marginHorizontal: 16, 
@@ -233,7 +243,7 @@ const styles = StyleSheet.create({
     borderRadius: 16, 
     elevation: 3, 
     borderLeftWidth: 6, 
-    borderLeftColor: '#005b9f',
+    borderLeftColor: '#1E3A8A',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -242,23 +252,31 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   statusIcons: { alignItems: 'flex-end' },
   iconRow: { flexDirection: 'row', marginTop: 6 },
-  badgeIcon: { 
-    backgroundColor: '#E0F2FE', 
-    padding: 4, 
-    borderRadius: 6, 
-    marginLeft: 6 
-  },
+  badgeIcon: { backgroundColor: '#E0F2FE', padding: 4, borderRadius: 6, marginLeft: 6 },
   txtArea: { fontSize: 11, fontWeight: 'bold', color: '#94A3B8', textTransform: 'uppercase', marginBottom: 2 },
   txtHora: { fontSize: 10, color: '#94A3B8', fontWeight: 'bold' },
-  // <-- Estilo renomeado para remover o termo antigo
   txtCodigoSistema: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
-  
   cardBody: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 },
   txtDesc: { fontSize: 13, color: '#64748B', flex: 1, marginRight: 15, lineHeight: 18 },
   pesoContainer: { alignItems: 'flex-end' },
   txtPeso: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
   unitText: { fontSize: 10, color: '#94A3B8', fontWeight: 'bold', textTransform: 'uppercase' },
-  
   emptyContainer: { alignItems: 'center', marginTop: 100 },
-  emptyText: { marginTop: 10, color: '#94A3B8', fontSize: 14 }
+  emptyText: { marginTop: 10, color: '#94A3B8', fontSize: 14 },
+  
+  // Botões Utilitários (Para você usar na página de formulário)
+  btnSave: {
+    backgroundColor: '#1E3A8A',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center'
+  },
+  btnCancel: {
+    backgroundColor: '#F1F5F9',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center'
+  },
+  btnTextSave: { color: '#FFF', fontWeight: 'bold' },
+  btnTextCancel: { color: '#64748B', fontWeight: 'bold' }
 });

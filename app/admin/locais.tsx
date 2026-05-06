@@ -73,7 +73,7 @@ export default function GestaoLocais() {
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="light-content" />
       
-      {/* CABEÇALHO PADRÃO SMARTCOUNT */}
+      {/* CABEÇALHO PADRÃO AFERY */}
       <View style={[styles.headerAzul, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />

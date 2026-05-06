@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons'; 
 import { useAuth } from '../../src/context/AuthContext'; 
 
-// --- HEADER PADRÃO ADMIN ---
+// --- HEADER PADRÃO AFERY ---
 const HeaderHome = ({ topInset }: { topInset: number }) => (
   <View style={[styles.header, { paddingTop: topInset + 10 }]}>
-    <View style={styles.logoSC}>
-      <Text style={styles.logoSCText}>SC</Text>
-    </View>
+    {/* Inserção do logotipo conforme solicitado */}
+    <Image 
+      source={require('../../assets/images/icon.png')} 
+      style={styles.logoIcon} 
+      resizeMode="contain" 
+    />
     <View style={styles.headerTextContainer}>
       <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-        <Text style={styles.logoSmart}>Smart</Text>
-        <Text style={styles.logoCount}>Count</Text>
+        <Text style={styles.logoAFERY}>AFERY</Text>
       </View>
       <Text style={styles.headerSubtitle}>Sistemas de Inventário</Text>
     </View>
@@ -30,7 +32,6 @@ export default function TelaInicial() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   
-  // Pegamos a função signOut do AuthContext
   const { role, organizacao_id, signOut } = useAuth();
 
   useEffect(() => {
@@ -60,7 +61,6 @@ export default function TelaInicial() {
     return (item.nome?.toLowerCase() || '').includes(termoBusca);
   });
 
-  // Função para confirmar e executar o logout
   const handleSair = () => {
     Alert.alert("Sair", "Deseja realmente sair do sistema?", [
       { text: "Cancelar", style: "cancel" },
@@ -69,8 +69,6 @@ export default function TelaInicial() {
         style: "destructive", 
         onPress: async () => {
           await signOut(); 
-          // O AuthContext ou o _layout farão o redirecionamento automático, 
-          // mas por segurança, podemos forçar a ida para o login
           router.replace('/login');
         } 
       }
@@ -103,7 +101,7 @@ export default function TelaInicial() {
         </View>
 
         {carregando ? (
-          <ActivityIndicator size="large" color="#F59E0B" style={{ marginTop: 50 }} />
+          <ActivityIndicator size="large" color="#1E3A8A" style={{ marginTop: 50 }} />
         ) : (
           <FlatList
             data={familiasFiltradas} 
@@ -136,7 +134,6 @@ export default function TelaInicial() {
         )}
       </View>
 
-      {/* BOTÃO FLUTUANTE ADMIN (ESQUERDA) */}
       {role?.toUpperCase() === 'ADMIN' && (
         <TouchableOpacity 
           style={[styles.fabAdmin, { bottom: insets.bottom + 110 }]} 
@@ -147,7 +144,6 @@ export default function TelaInicial() {
         </TouchableOpacity>
       )}
 
-      {/* NOVO: BOTÃO FLUTUANTE DE SAIR (DIREITA) */}
       <TouchableOpacity 
         style={[styles.fabLogout, { bottom: insets.bottom + 110 }]} 
         onPress={handleSair} 
@@ -171,19 +167,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F1F5F9',
     elevation: 2 
   },
-  logoSC: { 
+  logoIcon: { 
     width: 42, 
     height: 42, 
-    backgroundColor: '#F59E0B', 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
     marginRight: 12 
   },
-  logoSCText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
   headerTextContainer: { justifyContent: 'center' },
-  logoSmart: { color: '#1E3A8A', fontSize: 22, fontWeight: '900' },
-  logoCount: { color: '#F59E0B', fontSize: 22, fontWeight: '900' },
+  logoAFERY: { color: '#1E3A8A', fontSize: 22, fontWeight: '900' },
   headerSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '700', marginTop: -2 },
   
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
@@ -208,7 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: 10, 
     marginBottom: 10, 
     borderLeftWidth: 4, 
-    borderLeftColor: '#F59E0B',
+    borderLeftColor: '#1E3A8A', // Alterado de laranja para Azul Tech
     elevation: 2,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
@@ -232,11 +222,10 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   
-  // Estilo do Botão de Sair na Direita
   fabLogout: {
     position: 'absolute',
     right: 20, 
-    backgroundColor: '#EF4444', // Vermelho (Danger)
+    backgroundColor: '#EF4444', 
     width: 56,
     height: 56,
     borderRadius: 28,

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView, TextInput, Image, StatusBar, Linking } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView, TextInput, Image, StatusBar, Linking, Platform } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '../../src/supabase'; 
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -15,6 +15,7 @@ const COL_SISTEMA = 2;
 const COL_DESVIO = 2.5;
 
 const AZUL_TECH = '#1E3A8A';
+const AZUL_LINHA = '#F1F7FF';
 
 type SortConfig = {
   key: 'id' | 'fisico' | 'sistema' | 'desvio';
@@ -37,6 +38,7 @@ export default function TelaConsultaSaldos() {
 
   const supervisores = ['Edevandro', 'Everaldo', 'Fabio', 'Joel', 'Marcelo', 'Samuel'];
 
+  // --- FORMATAÇÕES ---
   const formatarPeso = (valor: number) => {
     if (valor === undefined || valor === null) return "0,0";
     return valor.toFixed(1).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
@@ -61,6 +63,7 @@ export default function TelaConsultaSaldos() {
     return { inicio: inicio.toISOString(), fim: fim.toISOString() };
   };
 
+  // --- LÓGICA DE AÇÕES RESTAURADA ---
   const abrirAuditoria = (item: any) => {
     router.push({
       pathname: '/auditoria', 
@@ -102,7 +105,6 @@ export default function TelaConsultaSaldos() {
 
   const buscarDados = async () => {
     if (!organizacao_id) return; 
-
     setCarregando(true);
     const { inicio: fisInicio, fim: fisFim } = obterFiltroTurno(dataSelecionada);
     const dataIso = formatarDataLocal(dataSelecionada);
@@ -115,7 +117,6 @@ export default function TelaConsultaSaldos() {
       const { data: itens } = await query;
 
       const { data: contagens } = await supabase.from('contagens').select('item_id, peso_liquido_calculado, data_hora, foto_url, observacao').eq('organizacao_id', organizacao_id).gte('data_hora', fisInicio).lt('data_hora', fisFim);
-
       const { data: estoqueSistema } = await supabase.from('estoque_sistema').select('sku_codigo, saldo_sistema, data_atualizacao').eq('organizacao_id', organizacao_id).gte('data_atualizacao', sistInicio).lte('data_atualizacao', sistFim).order('data_atualizacao', { ascending: false });
 
       const mapaSistema = new Map();
@@ -127,7 +128,6 @@ export default function TelaConsultaSaldos() {
       const consolidado = (itens || []).map(item => {
         const itensFisicos = contagens?.filter(c => c.item_id === item.id) || [];
         const totalFisico = itensFisicos.reduce((acc, curr) => acc + (curr.peso_liquido_calculado || 0), 0);
-        
         const skuLimpo = String(item.sku_codigo || item.id).trim().toUpperCase();
         const dadosSist = mapaSistema.get(skuLimpo);
         const saldoSistema = dadosSist ? dadosSist.saldo : 0; 
@@ -152,7 +152,6 @@ export default function TelaConsultaSaldos() {
           ultimaModificacao
         };
       }); 
-
       setLista(consolidado);
     } catch (err: any) { Alert.alert("Erro", err.message); }
     finally { setCarregando(false); }
@@ -182,40 +181,43 @@ export default function TelaConsultaSaldos() {
     setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };
 
+  // --- WHATSAPP COM INDICADORES RESTAURADO ---
   const enviarWhatsapp = () => {
     if (listaProcessada.length === 0) return;
-    let mensagem = `*📊 RELATÓRIO SMARTCOUNT*\n📅 Data: ${dataSelecionada.toLocaleDateString('pt-BR')}\n👤 Sup: ${supervisorAtivo}\n----------------------------\n\n`;
+    let mensagem = `*📊 RELATÓRIO AFERY*\n📅 Data: ${dataSelecionada.toLocaleDateString('pt-BR')}\n👤 Sup: ${supervisorAtivo}\n----------------------------\n\n`;
     listaProcessada.slice(0, 25).forEach(i => {
-      mensagem += `🔸 *${i.id}*\n🏷️ _${i.descricao || 'Sem desc.'}_\nFísico: ${formatarPeso(i.fisico)} | Sist: ${formatarPeso(i.sistema)}\nDesvio: *${formatarPeso(i.desvio)}* | R$: ${formatarMoeda(i.impacto)}\n\n`;
+      let indicador = i.desvio === 0 ? '🟢' : (i.desvio < 0 ? '🔴' : '🟠');
+      mensagem += `${indicador} *${i.id}*\n🏷️ _${i.descricao || 'Sem desc.'}_\nFísico: ${formatarPeso(i.fisico)} | Sist: ${formatarPeso(i.sistema)}\nDesvio: *${formatarPeso(i.desvio)}* | R$: ${formatarMoeda(i.impacto)}\n\n`;
     });
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(mensagem)}`);
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.headerAzul}>
+      <StatusBar barStyle="dark-content" />
+      
+      <View style={styles.headerBranco}>
         <View style={styles.logoRow}>
           <Image source={require('../../assets/images/icon.png')} style={styles.tinyLogo} />
           <View>
             <Text style={styles.titlePrincipal}>Painel de Inventário</Text>
-            <Text style={styles.subtitle}>Relatório Completo de Desvios</Text>
+            <Text style={styles.subtitle}>Relatório de Desvios</Text>
           </View>
         </View>
         
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color="#94A3B8" />
-          <TextInput style={styles.inputBusca} placeholder="Código ou descrição..." value={busca} onChangeText={setBusca} placeholderTextColor="#94A3B8" />
+          <TextInput style={styles.inputBusca} placeholder="Buscar código ou descrição..." value={busca} onChangeText={setBusca} />
         </View>
 
         <View style={styles.barraFiltro}>
           <TouchableOpacity style={styles.dataContainer} onPress={() => setShowDatePicker(true)}>
-            <Ionicons name="calendar-outline" size={20} color="#FFF" />
+            <Ionicons name="calendar-outline" size={20} color={AZUL_TECH} />
             <Text style={styles.txtData}>{dataSelecionada.toLocaleDateString('pt-BR')}</Text>
           </TouchableOpacity>
           <View style={styles.acoesHeader}>
             <TouchableOpacity onPress={enviarWhatsapp} style={styles.iconBtn}><Ionicons name="logo-whatsapp" size={24} color="#25D366" /></TouchableOpacity>
-            <TouchableOpacity onPress={buscarDados} style={styles.iconBtn}><Ionicons name="refresh-outline" size={24} color="#FFF" /></TouchableOpacity>
+            <TouchableOpacity onPress={buscarDados} style={styles.iconBtn}><Ionicons name="refresh-outline" size={24} color={AZUL_TECH} /></TouchableOpacity>
           </View>
         </View>
       </View>
@@ -232,13 +234,23 @@ export default function TelaConsultaSaldos() {
         </ScrollView>
       </View>
 
+      {/* CABEÇALHO DA TABELA - TODAS AS COLUNAS CLICÁVEIS RESTAURADAS */}
       <View style={styles.tableHeader}>
         <TouchableOpacity style={[styles.headBtn, { flex: COL_ITEM }]} onPress={() => alternarOrdem('id')}>
           <Text style={styles.txtHead}>Item / Aud.</Text>
           <Ionicons name={sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
         </TouchableOpacity>
-        <Text style={[styles.txtHead, { flex: COL_FISICO, textAlign: 'center' }]}>Físico</Text>
-        <Text style={[styles.txtHead, { flex: COL_SISTEMA, textAlign: 'center' }]}>Sistema</Text>
+
+        <TouchableOpacity style={[styles.headBtn, { flex: COL_FISICO, justifyContent: 'center' }]} onPress={() => alternarOrdem('fisico')}>
+          <Text style={styles.txtHead}>Físico</Text>
+          <Ionicons name={sortConfig.key === 'fisico' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.headBtn, { flex: COL_SISTEMA, justifyContent: 'center' }]} onPress={() => alternarOrdem('sistema')}>
+          <Text style={styles.txtHead}>Sistema</Text>
+          <Ionicons name={sortConfig.key === 'sistema' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
+        </TouchableOpacity>
+
         <TouchableOpacity style={[styles.headBtn, { flex: COL_DESVIO, justifyContent: 'flex-end' }]} onPress={() => alternarOrdem('desvio')}>
           <Text style={styles.txtHead}>Desvio</Text>
           <Ionicons name={sortConfig.key === 'desvio' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
@@ -250,8 +262,11 @@ export default function TelaConsultaSaldos() {
           data={listaProcessada} 
           keyExtractor={item => item.internalId.toString()}
           contentContainerStyle={{ paddingBottom: 100 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.row} onPress={() => abrirAuditoria(item)}>
+          renderItem={({ item, index }) => (
+            <TouchableOpacity 
+              style={[styles.row, { backgroundColor: index % 2 === 0 ? '#FFFFFF' : AZUL_LINHA }]} 
+              onPress={() => abrirAuditoria(item)}
+            >
               <View style={{ flex: COL_ITEM }}>
                 <Text style={styles.itemCode}>{item.id}</Text>
                 <Text style={styles.itemDesc} numberOfLines={2}>{item.descricao || 'S/ DESCRIÇÃO'}</Text>
@@ -270,14 +285,12 @@ export default function TelaConsultaSaldos() {
                     {(item.temFoto || item.temObs) && (
                       <View style={styles.containerAlerta}>
                         {item.temFoto && <Ionicons name="camera" size={12} color="#B45309" />}
-                        {item.temObs && <MaterialCommunityIcons name="file-document-edit" size={12} color="#B45309" style={item.temFoto ? {marginLeft: 2} : {}} />}
+                        {item.temObs && <MaterialCommunityIcons name="file-document-edit" size={12} color="#B45309" />}
                       </View>
                     )}
-                    
-                    {/* TRAVA DE RENDERIZAÇÃO DA LIXEIRA AQUI */}
                     {(item.fisico > 0 || item.sistema > 0) && (
                       <TouchableOpacity onPress={() => confirmarExclusao(item)} style={styles.btnTrash}>
-                          <Ionicons name="trash-outline" size={18} color="#CBD5E1" />
+                          <Ionicons name="trash-outline" size={18} color="#64748B" />
                       </TouchableOpacity>
                     )}
                 </View>
@@ -291,17 +304,17 @@ export default function TelaConsultaSaldos() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  headerAzul: { backgroundColor: AZUL_TECH, paddingTop: 50, paddingBottom: 15, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  headerBranco: { backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'ios' ? 60 : 45, paddingBottom: 20, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 4 },
   logoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  tinyLogo: { width: 35, height: 35, marginRight: 12 },
-  titlePrincipal: { fontSize: 18, fontWeight: 'bold', color: '#FFF' },
-  subtitle: { fontSize: 11, color: '#BFDBFE' },
-  searchBar: { backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingHorizontal: 12, height: 40, marginVertical: 10 },
+  tinyLogo: { width: 45, height: 45, marginRight: 12, borderRadius: 8 },
+  titlePrincipal: { fontSize: 20, fontWeight: '900', color: AZUL_TECH }, 
+  subtitle: { fontSize: 11, color: '#64748B', fontWeight: '700', textTransform: 'uppercase' },
+  searchBar: { backgroundColor: '#F1F5F9', flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, height: 45, marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0' },
   inputBusca: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1E293B' },
   barraFiltro: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
-  dataContainer: { flexDirection: 'row', alignItems: 'center' },
-  txtData: { color: '#FFF', fontSize: 15, fontWeight: 'bold', marginLeft: 8 },
+  dataContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  txtData: { color: AZUL_TECH, fontSize: 15, fontWeight: 'bold', marginLeft: 8 },
   acoesHeader: { flexDirection: 'row', gap: 15 },
   iconBtn: { padding: 4 },
   containerSupervisores: { paddingVertical: 12, backgroundColor: '#F8FAFC' },
@@ -309,15 +322,15 @@ const styles = StyleSheet.create({
   badgeAtivo: { backgroundColor: AZUL_TECH },
   txtBadge: { fontSize: 13, fontWeight: 'bold', color: '#64748B' },
   txtBadgeAtivo: { color: '#FFF' },
-  tableHeader: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  tableHeader: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: '#CBD5E1', backgroundColor: '#FFFFFF' },
   headBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  txtHead: { fontSize: 11, fontWeight: 'bold', color: '#94A3B8', textTransform: 'uppercase' },
-  row: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC', alignItems: 'center' },
+  txtHead: { fontSize: 11, fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase' },
+  row: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', alignItems: 'center' },
   itemCode: { fontSize: 15, fontWeight: '900', color: AZUL_TECH }, 
   itemDesc: { fontSize: 11, color: '#64748B', marginTop: 4, width: '95%' }, 
-  valText: { fontSize: 15, fontWeight: '700' }, 
+  valText: { fontSize: 15, fontWeight: '700', color: '#1E293B' }, 
   valDesvio: { fontSize: 15, fontWeight: '900' }, 
   valGrana: { fontSize: 11, fontWeight: 'bold', marginTop: 2 }, 
   containerAlerta: { flexDirection: 'row', backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A' },
-  btnTrash: { padding: 4 }
+  btnTrash: { padding: 6, marginLeft: 4 }
 });

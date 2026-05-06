@@ -16,14 +16,13 @@ import { supabase } from '../../src/supabase';
 import { useRouter } from 'expo-router'; 
 
 const COLORS = {
-  background: '#FAFAFA',
-  industrialOrange: '#E6A23C',
-  techBlue: '#1E3A8A',
-  black: '#333333',
+  background: '#FFFFFF', // Fundo branco conforme imagem
+  techBlue: '#1E3A8A',   // Azul padrão Afery
+  black: '#000000',      // Texto principal preto
   gray: '#666666',
   white: '#FFFFFF',
-  border: '#DDDDDD',
-  textSubtle: '#888888',
+  border: '#E2E8F0',
+  textSubtle: '#94A3B8',
 };
 
 export default function LoginScreen() {
@@ -62,19 +61,21 @@ export default function LoginScreen() {
       >
         <View style={styles.container}>
           
+          {/* LOGO E TEXTO CONFORME IMAGEM */}
           <View style={styles.logoContainer}>
-            <Image 
-              source={require('../../assets/images/sc_icon.png')} 
-              style={styles.logoIcon} 
-              resizeMode="contain"
-            />
-            <View style={styles.logoTextContainer}>
-              <Text style={styles.logoTextSmart}>SMART</Text>
-              <Text style={styles.logoTextCount}>COUNT</Text>
+            <View style={styles.logoRow}>
+              <Image 
+                source={require('../../assets/images/icon.png')} 
+                style={styles.logoIcon} 
+                resizeMode="contain"
+              />
+              <Text style={styles.logoTextAFERY}>Afery</Text>
             </View>
+            <Text style={styles.logoSubtitle}>Sistemas de inventário</Text>
           </View>
           
           <Text style={styles.title}>BEM-VINDO</Text>
+          
           <TextInput
             style={styles.input}
             placeholder="E-mail"
@@ -112,8 +113,6 @@ export default function LoginScreen() {
 
           {/* --- BLOCO DE LINKS PARA CADASTRO (SaaS) --- */}
           <View style={styles.saasLinksContainer}>
-            
-            {/* Opção para o Conferente (Vínculo) */}
             <TouchableOpacity 
               style={styles.saasLinkItem} 
               onPress={() => router.push('/(auth)/cadastro')}
@@ -124,15 +123,13 @@ export default function LoginScreen() {
 
             <View style={styles.divider} />
 
-            {/* Opção para o Novo Admin (Criação de Org) */}
             <TouchableOpacity 
               style={styles.saasLinkItem} 
               onPress={() => router.push('/(auth)/nova-empresa')}
             >
-              <Text style={styles.saasLinkText}>Quer usar o Smart Count na sua empresa?</Text>
+              <Text style={styles.saasLinkText}>Quer usar o AFERY na sua empresa?</Text>
               <Text style={styles.saasLinkAction}>Comece aqui.</Text>
             </TouchableOpacity>
-
           </View>
 
           <Text style={styles.footer}>Blindagem SaaS Multi-tenant Ativada</Text>
@@ -146,12 +143,16 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   keyboardView: { flex: 1 },
   container: { flex: 1, justifyContent: 'center', padding: 30 },
-  logoContainer: { alignItems: 'center', marginBottom: 30 },
-  logoIcon: { width: 80, height: 80, marginBottom: 10 },
-  logoTextContainer: { alignItems: 'center' },
-  logoTextSmart: { fontSize: 24, fontWeight: 'bold', color: COLORS.industrialOrange },
-  logoTextCount: { fontSize: 24, fontWeight: 'bold', color: COLORS.techBlue, marginTop: -2 },
-  title: { fontSize: 20, fontWeight: 'bold', color: COLORS.black, textAlign: 'center', marginBottom: 25 },
+  
+  // LOGO ESTILO IMAGEM
+  logoContainer: { alignItems: 'center', marginBottom: 40 },
+  logoRow: { flexDirection: 'row', alignItems: 'center' },
+  logoIcon: { width: 70, height: 70, marginRight: 10 },
+  logoTextAFERY: { fontSize: 42, fontWeight: 'bold', color: COLORS.black },
+  logoSubtitle: { fontSize: 24, color: COLORS.black, marginTop: -5 },
+  
+  title: { fontSize: 16, fontWeight: 'bold', color: COLORS.gray, textAlign: 'center', marginBottom: 25, letterSpacing: 2 },
+  
   input: {
     height: 55,
     backgroundColor: COLORS.white,
@@ -165,43 +166,23 @@ const styles = StyleSheet.create({
   },
   forgotPasswordContainer: { alignSelf: 'flex-end', marginBottom: 20 },
   forgotPasswordText: { color: COLORS.techBlue, fontSize: 13, fontWeight: '500' },
+  
   button: {
     height: 55,
-    backgroundColor: COLORS.industrialOrange,
+    backgroundColor: COLORS.techBlue, // Botão agora é Azul Tech
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 30,
+    elevation: 2,
   },
   buttonText: { color: COLORS.white, fontSize: 18, fontWeight: 'bold' },
   
-  // ESTILOS DOS NOVOS LINKS SAAS
-  saasLinksContainer: {
-    marginTop: 10,
-    gap: 15,
-  },
-  saasLinkItem: {
-    alignItems: 'center',
-    paddingVertical: 5,
-  },
-  saasLinkText: {
-    color: COLORS.textSubtle,
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  saasLinkAction: {
-    color: COLORS.techBlue,
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    width: '60%',
-    alignSelf: 'center',
-    marginVertical: 5,
-  },
+  saasLinksContainer: { marginTop: 10, gap: 15 },
+  saasLinkItem: { alignItems: 'center', paddingVertical: 5 },
+  saasLinkText: { color: COLORS.textSubtle, fontSize: 13, textAlign: 'center' },
+  saasLinkAction: { color: COLORS.techBlue, fontSize: 14, fontWeight: 'bold', marginTop: 2 },
+  divider: { height: 1, backgroundColor: COLORS.border, width: '60%', alignSelf: 'center', marginVertical: 5 },
   
   footer: { position: 'absolute', bottom: 20, left: 0, right: 0, textAlign: 'center', color: COLORS.gray, fontSize: 11 },
 });

@@ -58,7 +58,7 @@ export default function AdminHub() {
             resizeMode="contain"
           />
           <View style={styles.brandTitleContainer}>
-            <Text style={styles.brandTitle}>Smart<Text style={{ color: '#E6A23C' }}>Count</Text></Text>
+            <Text style={styles.brandTitle}>AFERY</Text>
             <Text style={styles.brandSubtitle}>Painel do Administrador</Text>
           </View>
         </View>
@@ -87,7 +87,7 @@ export default function AdminHub() {
         ))}
 
         <View style={styles.footerContainer}>
-          <Text style={styles.footerText}>Smart Count Pro v1.0</Text>
+          <Text style={styles.footerText}>AFERY Pro v1.0</Text>
         </View>
       </ScrollView>
 

@@ -21,7 +21,7 @@ export default function TabLayout() {
           marginBottom: 5, // Ajuste fino para o texto não colar na borda
         },
         tabBarStyle: {
-          // --- CONFIGURAÇÃO DA MARCA SMART COUNT (FLUTUANTE) ---
+          // --- CONFIGURAÇÃO DA MARCA AFERY (FLUTUANTE) ---
           position: 'absolute', 
           // 3. A MÁGICA AQUI: Somamos o insets.bottom para empurrar a barra acima dos botões nativos
           bottom: Platform.OS === 'android' ? 20 + insets.bottom : 30 + insets.bottom, 

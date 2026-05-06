@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "SmartCount",
-    "slug": "smartcount",
+    "name": "AFERY",
+    "slug": "AFERY",
     "version": "1.0.0",
     "owner": "tfiletti",
     "icon": "./assets/images/icon.png",
@@ -12,7 +12,7 @@
       "backgroundColor": "#ffffff"
     },
     "android": {
-      "package": "com.tfiletti.smartcount",
+      "package": "com.tfiletti.AFERY",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"

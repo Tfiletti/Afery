@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, StatusBar, Modal, FlatList, ActivityIndicator, Platform, KeyboardAvoidingView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, StatusBar, Modal, FlatList, ActivityIndicator, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -11,17 +11,21 @@ import { Buffer } from 'buffer';
 import { supabase } from '../src/supabase';
 import { useAuth } from '../src/context/AuthContext';
 
+// --- HEADER PADRÃO AFERY ---
 const HeaderContagem = () => {
   const router = useRouter();
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={() => router.back()} style={{ padding: 5 }}>
-        <Ionicons name="arrow-back" size={24} color="#1F2937" />
+        <Ionicons name="arrow-back" size={24} color="#1E3A8A" />
       </TouchableOpacity>
       <View style={styles.headerCenter}>
-        <View style={styles.logoSC}>
-          <Text style={styles.logoSCText}>SC</Text>
-        </View>
+        {/* Substituído o quadrado SC pelo logotipo oficial */}
+        <Image 
+          source={require('../assets/images/icon.png')} 
+          style={styles.logoIcon} 
+          resizeMode="contain" 
+        />
         <Text style={styles.headerTitle}>Formulário de Contagem</Text>
       </View>
       <View style={{ width: 34 }} />
@@ -37,7 +41,7 @@ export default function TelaDeContagem() {
   
   const { organizacao_id } = useAuth(); 
 
-  // ================= ESTADOS GERAIS =================
+  // ================= ESTADOS GERAIS (Lógica Mantida) =================
   const [localSelecionadoId, setLocalSelecionadoId] = useState(null);
   const [localSelecionadoNome, setLocalSelecionadoNome] = useState('');
   const [modalLocalVisivel, setModalLocalVisivel] = useState(false);
@@ -84,7 +88,7 @@ export default function TelaDeContagem() {
     }
   };
 
-  // ================= EFEITOS =================
+  // ================= EFEITOS (Lógica Mantida) =================
   useEffect(() => {
     async function carregarDadosIniciais() {
       if (!organizacao_id) return;
@@ -112,7 +116,7 @@ export default function TelaDeContagem() {
     carregarDadosIniciais();
   }, [organizacao_id, params.itemId]);
 
-  // ================= MOTOR MATEMÁTICO =================
+  // ================= MOTOR MATEMÁTICO (Lógica Mantida) =================
   useEffect(() => {
     const paraNum = (valor: any) => {
       if (valor === '' || valor === null || valor === undefined) return 0;
@@ -150,7 +154,7 @@ export default function TelaDeContagem() {
     }
   }, [numTubetes, taraTubete, numLaminas, numPaletes, pesoBruto, pesoEmLinha, numCaixas, taraExtra, fatorCaixa, fatorPalete, pesoUnitario, metodologia]);
 
-  // ================= FUNÇÕES =================
+  // ================= FUNÇÕES (Lógica Mantida) =================
   const abrirCamera = async () => { 
     if (!permission?.granted) {
       const { granted } = await requestPermission();
@@ -207,7 +211,6 @@ export default function TelaDeContagem() {
         await supabase.storage.from('fotos_contagem').upload(nomeArquivoFoto, Buffer.from(base64, 'base64'), { contentType: 'image/jpeg' });
       }
 
-      // ================= FIX X DA QUESTÃO: SALVAMENTO COMPLETO =================
       const detalhesJSON = {
         metodologia_usada: metodologia,
         fornecedor: fornecedorSelecionado,
@@ -239,7 +242,6 @@ export default function TelaDeContagem() {
     } catch (err: any) { Alert.alert("Erro", err.message); } finally { setCarregando(false); }
   };
 
-  // ================= RENDER =================
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -252,19 +254,19 @@ export default function TelaDeContagem() {
             <View style={styles.localRow}>
               {params.areaNome ? (
                 <View style={styles.localBtn}>
-                  <Ionicons name="location" size={18} color="#EF4444" />
+                  <Ionicons name="location" size={18} color="#1E3A8A" />
                   <Text style={styles.localTextSelecionado}>{params.areaNome}</Text>
                 </View>
               ) : (
                 <TouchableOpacity style={styles.localBtn} onPress={() => setModalLocalVisivel(true)}>
-                  <Ionicons name="location" size={18} color={localSelecionadoNome ? "#EF4444" : "#9CA3AF"} />
+                  <Ionicons name="location" size={18} color={localSelecionadoNome ? "#1E3A8A" : "#9CA3AF"} />
                   <Text style={localSelecionadoNome ? styles.localTextSelecionado : styles.localTextPlaceholder}>
                     {localSelecionadoNome || "Selecionar Local..."}
                   </Text>
                 </TouchableOpacity>
               )}
               <View style={styles.skuBadge}>
-                <Ionicons name="cube" size={14} color="#8B5CF6" style={{ marginRight: 4 }} />
+                <Ionicons name="cube" size={14} color="#1E3A8A" style={{ marginRight: 4 }} />
                 <Text style={styles.skuText}>{params.codigo || "SKU"}</Text>
               </View>
             </View>
@@ -284,12 +286,12 @@ export default function TelaDeContagem() {
             </View>
           </View>
 
-          {/* GRID DINÂMICO COM LABELS LIMPOS (SEM PESOS) */}
+          {/* GRID DE INPUTS (Visual mantido) */}
           <View style={styles.grid}>
             {metodologia === 'BOBINA_KG' && (
               <>
-                <CardStepper label="Tubetes" value={numTubetes} onChangeText={setNumTubetes} onAdd={() => setNumTubetes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumTubetes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#E6A23C" />
-                <CardInput label="Tara Tubete" value={taraTubete} onChange={setTaraTubete} color="#E6A23C" />
+                <CardStepper label="Tubetes" value={numTubetes} onChangeText={setNumTubetes} onAdd={() => setNumTubetes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumTubetes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#64748B" />
+                <CardInput label="Tara Tubete" value={taraTubete} onChange={setTaraTubete} color="#64748B" />
                 <CardStepper label="Lâminas" value={numLaminas} onChangeText={setNumLaminas} onAdd={() => setNumLaminas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumLaminas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardStepper label="Paletes" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" defaultVal={1} />
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
@@ -302,7 +304,7 @@ export default function TelaDeContagem() {
                 <CardStepper label="Paletes" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardStepper label="Caixas" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#64748B" />
                 <CardCalc label="Em linha" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
@@ -312,7 +314,7 @@ export default function TelaDeContagem() {
                 <CardStepper label="Paletes (Master)" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardStepper label="Rolos (Bobinas)" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#64748B" />
                 <CardCalc label="Em linha" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
@@ -322,7 +324,7 @@ export default function TelaDeContagem() {
                 <CardStepper label="Paletes" value={numPaletes} onChangeText={setNumPaletes} onAdd={() => setNumPaletes((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumPaletes((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardStepper label="Sacos" value={numCaixas} onChangeText={setNumCaixas} onAdd={() => setNumCaixas((p:any) => (parseInt(p)||0)+1)} onSub={() => setNumCaixas((p:any) => Math.max(0, (parseInt(p)||0)-1))} color="#1E3A8A" />
                 <CardInput label="Peso Bruto" value={pesoBruto} onChange={setPesoBruto} color="#EF4444" />
-                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#E6A23C" />
+                <CardInput label="Taras" value={taraExtra} onChange={setTaraExtra} color="#64748B" />
                 <CardCalc label="Em linha" value={pesoEmLinha} onChange={setPesoEmLinha} color="#10B981" onPressCalc={() => setModalCalcVisivel(true)} />
               </>
             )}
@@ -336,14 +338,17 @@ export default function TelaDeContagem() {
           </View>
 
           <View style={styles.finalCard}>
-            <Text style={styles.finalLabel}>Total</Text>
+            <Text style={styles.finalLabel}>Total Calculado</Text>
             <Text style={styles.finalValue}>{formatarResultado(pesoLiquido)}</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* FOOTER AJUSTADO - BOTÕES ENXUTOS NO PADRÃO AZUL */}
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}><Text style={styles.btnCancelText}>Cancelar</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.btnCancel} onPress={() => router.back()}>
+          <Text style={styles.btnCancelText}>Cancelar</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.btnSave} onPress={salvarRegistro} disabled={carregando}>
           {carregando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnSaveText}>Salvar Contagem</Text>}
         </TouchableOpacity>
@@ -388,7 +393,7 @@ export default function TelaDeContagem() {
       <Modal visible={modalCalcVisivel} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.calcContainer}>
-            <View style={styles.calcHeader}><Text style={styles.calcTitle}>Somador</Text><TouchableOpacity onPress={() => setModalCalcVisivel(false)}><Ionicons name="close" size={24} color="#64748B" /></TouchableOpacity></View>
+            <View style={styles.calcHeader}><Text style={styles.calcTitle}>Somador de Avulsos</Text><TouchableOpacity onPress={() => setModalCalcVisivel(false)}><Ionicons name="close" size={24} color="#64748B" /></TouchableOpacity></View>
             <View style={styles.calcInputsRow}>
                 <TextInput style={styles.calcInputPequeno} placeholder="Qtd" value={tempQtd} onChangeText={setTempQtd} keyboardType="numeric" />
                 <TextInput style={styles.calcInputGrande} placeholder="Valor" value={tempPeso} onChangeText={setTempPeso} keyboardType="numeric" />
@@ -400,7 +405,7 @@ export default function TelaDeContagem() {
                 <TouchableOpacity onPress={() => removerDoCalculo(index)}><Ionicons name="trash" size={18} color="red" /></TouchableOpacity>
               </View>
             )} />
-            <TouchableOpacity style={styles.btnConfirmarCalc} onPress={confirmarCalculo}><Text style={styles.txtConfirmar}>OK</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnConfirmarCalc} onPress={confirmarCalculo}><Text style={styles.txtConfirmar}>CONFIRMAR VALOR</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -446,61 +451,69 @@ const CardCalc = ({ label, value, onChange, color, onPressCalc }: any) => (
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: { backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingBottom: 15, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 4 },
+  header: { backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'ios' ? 50 : 40, paddingBottom: 15, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   headerCenter: { flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 16, color: '#E6A23C', fontWeight: 'bold' },
-  logoSC: { width: 30, height: 30, backgroundColor: '#E6A23C', borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
-  logoSCText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  logoIcon: { width: 32, height: 32, marginRight: 10 },
+  headerTitle: { fontSize: 16, color: '#1E3A8A', fontWeight: 'bold' },
+  
   scrollContent: { padding: 15 },
   topPanel: { marginBottom: 15 },
   localRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  localBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#E2E8F0', padding: 10, borderRadius: 10, marginRight: 10 },
+  localBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 10, borderRadius: 10, marginRight: 10 },
   localTextPlaceholder: { fontSize: 13, color: '#64748B' },
   localTextSelecionado: { fontSize: 13, color: '#1E293B', fontWeight: 'bold' },
-  skuBadge: { backgroundColor: '#FFFFFF', paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center' },
-  skuText: { fontSize: 12, fontWeight: 'bold' },
-  fornecedorRow: { backgroundColor: '#FFFFFF', padding: 10, borderRadius: 10, elevation: 1 },
-  labelFornecedor: { fontSize: 10, color: '#64748B', marginBottom: 5 },
+  skuBadge: { backgroundColor: '#FFFFFF', paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center' },
+  skuText: { fontSize: 12, fontWeight: 'bold', color: '#1E3A8A' },
+  
+  fornecedorRow: { backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: '#1E3A8A', elevation: 2 },
+  labelFornecedor: { fontSize: 10, color: '#64748B', fontWeight: 'bold', marginBottom: 5, textTransform: 'uppercase' },
   fornecedorBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   fornecedorTextPlaceholder: { fontSize: 13, color: '#94A3B8' },
   fornecedorTextSelecionado: { fontSize: 13, color: '#1E3A8A', fontWeight: 'bold' },
+  
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   card: { backgroundColor: '#FFF', width: '48%', padding: 12, borderRadius: 12, marginBottom: 12, elevation: 2, borderLeftWidth: 4 },
-  cardLabel: { fontSize: 10, fontWeight: 'bold', color: '#64748B', marginBottom: 5 },
+  cardLabel: { fontSize: 10, fontWeight: 'bold', color: '#64748B', marginBottom: 5, textTransform: 'uppercase' },
   stepper: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, padding: 2 },
-  stepInput: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', flex: 1 },
+  stepInput: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', flex: 1, color: '#1E293B' },
   cardInput: { fontSize: 18, fontWeight: 'bold', textAlign: 'right', color: '#1E2937' },
-  obsContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 10, elevation: 2 },
-  inputObs: { flex: 1, fontSize: 13, height: 50 },
+  
+  obsContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 10, elevation: 2, marginTop: 5 },
+  inputObs: { flex: 1, fontSize: 13, height: 50, color: '#1E293B' },
   btnFoto: { padding: 5 },
   btnFotoAtivo: { backgroundColor: '#D1FAE5', borderRadius: 15 },
-  finalCard: { backgroundColor: '#FFF', padding: 15, borderRadius: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 6, borderLeftColor: '#1E3A8A', marginTop: 15, elevation: 4 },
-  finalLabel: { fontSize: 14, fontWeight: 'bold', color: '#1E3A8A' },
-  finalValue: { fontSize: 24, fontWeight: '900' },
-  footer: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingHorizontal: 20, paddingTop: 10 },
-  btnCancel: { flex: 1, height: 50, justifyContent: 'center' },
-  btnCancelText: { color: '#94A3B8', fontWeight: 'bold' },
-  btnSave: { flex: 1.5, backgroundColor: '#E6A23C', height: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  btnSaveText: { color: '#FFF', fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  
+  finalCard: { backgroundColor: '#FFFFFF', padding: 18, borderRadius: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderLeftWidth: 8, borderLeftColor: '#1E3A8A', marginTop: 15, elevation: 5 },
+  finalLabel: { fontSize: 14, fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase' },
+  finalValue: { fontSize: 28, fontWeight: '900', color: '#1E3A8A' },
+  
+  footer: { flexDirection: 'row', backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingHorizontal: 20, paddingTop: 12, gap: 12 },
+  btnCancel: { flex: 1, height: 52, justifyContent: 'center', alignItems: 'center', borderRadius: 12, backgroundColor: '#F1F5F9' },
+  btnCancelText: { color: '#64748B', fontWeight: 'bold' },
+  btnSave: { flex: 2, backgroundColor: '#1E3A8A', height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  btnSaveText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#FFF', width: '85%', borderRadius: 20, padding: 20, maxHeight: '70%' },
   modalItem: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  modalItemText: { fontSize: 15, fontWeight: 'bold' },
-  modalCloseBtn: { marginTop: 10, padding: 10, alignItems: 'center' },
-  modalCloseText: { color: '#64748B', fontWeight: 'bold' },
-  calcContainer: { backgroundColor: '#FFF', width: '90%', borderRadius: 20, padding: 20 },
-  calcHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
-  calcTitle: { fontSize: 16, fontWeight: 'bold' },
+  modalItemText: { fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
+  modalCloseBtn: { marginTop: 15, padding: 12, alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 10 },
+  modalCloseText: { color: '#1E3A8A', fontWeight: 'bold' },
+  
+  calcContainer: { backgroundColor: '#FFF', width: '92%', borderRadius: 24, padding: 20, elevation: 10 },
+  calcHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, alignItems: 'center' },
+  calcTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E3A8A' },
   calcInputsRow: { flexDirection: 'row', gap: 10, marginBottom: 15 },
-  calcInputPequeno: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 8, padding: 10 },
-  calcInputGrande: { flex: 2, backgroundColor: '#F1F5F9', borderRadius: 8, padding: 10 },
-  btnAddCalc: { backgroundColor: '#1E3A8A', borderRadius: 8, padding: 10 },
-  linhaCalculo: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderColor: '#EEE' },
-  btnConfirmarCalc: { backgroundColor: '#10B981', padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
-  txtConfirmar: { color: '#FFF', fontWeight: 'bold' },
+  calcInputPequeno: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 'bold' },
+  calcInputGrande: { flex: 2, backgroundColor: '#F1F5F9', borderRadius: 12, padding: 12, fontSize: 16, fontWeight: 'bold' },
+  btnAddCalc: { backgroundColor: '#1E3A8A', borderRadius: 12, width: 50, justifyContent: 'center', alignItems: 'center' },
+  linhaCalculo: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderColor: '#F1F5F9', alignItems: 'center' },
+  btnConfirmarCalc: { backgroundColor: '#10B981', padding: 16, borderRadius: 14, alignItems: 'center', marginTop: 15 },
+  txtConfirmar: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  
   cameraOverlay: { flex: 1, justifyContent: 'space-between', padding: 20 },
-  btnFecharCam: { alignSelf: 'flex-end' },
-  btnCapturar: { alignSelf: 'center', marginBottom: 30 },
-  circuloExterno: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
-  circuloInterno: { width: 55, height: 55, borderRadius: 27.5, backgroundColor: '#FFF' },
+  btnFecharCam: { alignSelf: 'flex-end', marginTop: 30 },
+  btnCapturar: { alignSelf: 'center', marginBottom: 40 },
+  circuloExterno: { width: 75, height: 75, borderRadius: 40, borderWidth: 4, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  circuloInterno: { width: 58, height: 58, borderRadius: 30, backgroundColor: '#FFF' },
 });
