@@ -9,8 +9,16 @@ export default function AdminHub() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // "Limpando o percurso": Menu reduzido apenas ao essencial
+  // "Limpando o percurso": Menu com a nova Solução Matadora incluída
   const menuOptions = [
+    {
+      id: 'importacao',
+      title: 'Gestão Massiva (Excel)',
+      description: 'Baixe a base atual e suba atualizações de itens e saldos via planilha.',
+      icon: 'document-text-outline',
+      route: '/admin/importacao',
+      color: '#F59E0B' // Um laranja/âmbar para destacar como ferramenta de gestão
+    },
     {
       id: 'equipe',
       title: 'Controle de Equipe',
@@ -53,8 +61,8 @@ export default function AdminHub() {
       <View style={[styles.cleanHeader, { paddingTop: insets.top + 10 }]}>
         <View style={styles.logoAndText}>
           <Image 
-            source={require('../../assets/images/sc_icon.png')} 
-            style={{ width: 45, height: 45 }} 
+            source={require('../../assets/images/icon.png')} // Atualizado para o ícone padrão Afery
+            style={{ width: 45, height: 45, borderRadius: 8 }} 
             resizeMode="contain"
           />
           <View style={styles.brandTitleContainer}>
@@ -91,7 +99,7 @@ export default function AdminHub() {
         </View>
       </ScrollView>
 
-      {/* =============== BOTÃO HOME (ESQUERDA / COMPACTO / ELEVADO) =============== */}
+      {/* =============== BOTÃO HOME =============== */}
       <TouchableOpacity 
         style={[styles.fab, { bottom: insets.bottom + 40 }]} 
         onPress={() => router.replace('/')}
@@ -146,7 +154,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     left: 20,           
-    width: 50,          
+    width: 50,           
     height: 50,         
     borderRadius: 25,   
     backgroundColor: '#1E3A8A',

@@ -36,7 +36,8 @@ export default function TelaConsultaSaldos() {
   const [busca, setBusca] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'desvio', direction: 'desc' });
 
-  const supervisores = ['Edevandro', 'Everaldo', 'Fabio', 'Joel', 'Marcelo', 'Samuel'];
+  // AGORA OS SUPERVISORES SÃO UM ESTADO DINÂMICO
+  const [supervisores, setSupervisores] = useState<string[]>([]);
 
   // --- FORMATAÇÕES ---
   const formatarPeso = (valor: number) => {
@@ -63,7 +64,33 @@ export default function TelaConsultaSaldos() {
     return { inicio: inicio.toISOString(), fim: fim.toISOString() };
   };
 
-  // --- LÓGICA DE AÇÕES RESTAURADA ---
+  // --- BUSCA DINÂMICA DE SUPERVISORES (RESPONSÁVEIS) ---
+  const buscarSupervisores = async () => {
+    if (!organizacao_id) return;
+
+    try {
+      // Busca apenas os responsáveis únicos cadastrados nos itens desta organização
+      const { data, error } = await supabase
+        .from('itens')
+        .select('responsavel')
+        .eq('organizacao_id', organizacao_id);
+
+      if (error) throw error;
+
+      if (data) {
+        // Filtra nulos, vazios, pega únicos (Set) e ordena alfabeticamente
+        const nomes = data
+          .map(i => i.responsavel)
+          .filter((v): v is string => !!v && v.trim() !== '');
+        
+        const unicos = Array.from(new Set(nomes)).sort();
+        setSupervisores(unicos);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar supervisores:", err);
+    }
+  };
+
   const abrirAuditoria = (item: any) => {
     router.push({
       pathname: '/auditoria', 
@@ -157,7 +184,10 @@ export default function TelaConsultaSaldos() {
     finally { setCarregando(false); }
   };
 
-  useFocusEffect(useCallback(() => { buscarDados(); }, [supervisorAtivo, dataSelecionada]));
+  useFocusEffect(useCallback(() => { 
+    buscarSupervisores(); // Carrega a lista de filtros da empresa logada
+    buscarDados(); 
+  }, [supervisorAtivo, dataSelecionada]));
 
   const listaProcessada = useMemo(() => {
     let resultado = [...lista];
@@ -181,7 +211,6 @@ export default function TelaConsultaSaldos() {
     setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };
 
-  // --- WHATSAPP COM INDICADORES RESTAURADO ---
   const enviarWhatsapp = () => {
     if (listaProcessada.length === 0) return;
     let mensagem = `*📊 RELATÓRIO AFERY*\n📅 Data: ${dataSelecionada.toLocaleDateString('pt-BR')}\n👤 Sup: ${supervisorAtivo}\n----------------------------\n\n`;
@@ -234,7 +263,6 @@ export default function TelaConsultaSaldos() {
         </ScrollView>
       </View>
 
-      {/* CABEÇALHO DA TABELA - TODAS AS COLUNAS CLICÁVEIS RESTAURADAS */}
       <View style={styles.tableHeader}>
         <TouchableOpacity style={[styles.headBtn, { flex: COL_ITEM }]} onPress={() => alternarOrdem('id')}>
           <Text style={styles.txtHead}>Item / Aud.</Text>
