@@ -36,10 +36,8 @@ export default function TelaConsultaSaldos() {
   const [busca, setBusca] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'desvio', direction: 'desc' });
 
-  // AGORA OS SUPERVISORES SÃO UM ESTADO DINÂMICO
   const [supervisores, setSupervisores] = useState<string[]>([]);
 
-  // --- FORMATAÇÕES ---
   const formatarPeso = (valor: number) => {
     if (valor === undefined || valor === null) return "0,0";
     return valor.toFixed(1).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
@@ -64,31 +62,20 @@ export default function TelaConsultaSaldos() {
     return { inicio: inicio.toISOString(), fim: fim.toISOString() };
   };
 
-  // --- BUSCA DINÂMICA DE SUPERVISORES (RESPONSÁVEIS) ---
   const buscarSupervisores = async () => {
     if (!organizacao_id) return;
-
     try {
-      // Busca apenas os responsáveis únicos cadastrados nos itens desta organização
       const { data, error } = await supabase
         .from('itens')
         .select('responsavel')
         .eq('organizacao_id', organizacao_id);
-
       if (error) throw error;
-
       if (data) {
-        // Filtra nulos, vazios, pega únicos (Set) e ordena alfabeticamente
-        const nomes = data
-          .map(i => i.responsavel)
-          .filter((v): v is string => !!v && v.trim() !== '');
-        
+        const nomes = data.map(i => i.responsavel).filter((v): v is string => !!v && v.trim() !== '');
         const unicos = Array.from(new Set(nomes)).sort();
         setSupervisores(unicos);
       }
-    } catch (err) {
-      console.error("Erro ao carregar supervisores:", err);
-    }
+    } catch (err) { console.error("Erro ao carregar supervisores:", err); }
   };
 
   const abrirAuditoria = (item: any) => {
@@ -121,7 +108,13 @@ export default function TelaConsultaSaldos() {
 
     try {
         await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
-        await supabase.from('estoque_sistema').delete().eq('sku_codigo', item.id).eq('organizacao_id', organizacao_id).gte('data_atualizacao', `${dataIso}T00:00:00`).lte('data_atualizacao', `${dataIso}T23:59:59`);
+        
+        // ALTERAÇÃO CIRÚRGICA: Deletar baseado na data de referência
+        await supabase.from('estoque_sistema').delete()
+          .eq('sku_codigo', item.id)
+          .eq('organizacao_id', organizacao_id)
+          .eq('data_referencia', dataIso);
+
         Alert.alert("Sucesso", "Registros zerados com sucesso!");
         buscarDados(); 
     } catch (error: any) {
@@ -135,8 +128,6 @@ export default function TelaConsultaSaldos() {
     setCarregando(true);
     const { inicio: fisInicio, fim: fisFim } = obterFiltroTurno(dataSelecionada);
     const dataIso = formatarDataLocal(dataSelecionada);
-    const sistInicio = `${dataIso}T00:00:00`;
-    const sistFim = `${dataIso}T23:59:59`;
 
     try {
       let query = supabase.from('itens').select('id, sku_codigo, descricao, preco_unitario, responsavel').eq('organizacao_id', organizacao_id);
@@ -144,7 +135,13 @@ export default function TelaConsultaSaldos() {
       const { data: itens } = await query;
 
       const { data: contagens } = await supabase.from('contagens').select('item_id, peso_liquido_calculado, data_hora, foto_url, observacao').eq('organizacao_id', organizacao_id).gte('data_hora', fisInicio).lt('data_hora', fisFim);
-      const { data: estoqueSistema } = await supabase.from('estoque_sistema').select('sku_codigo, saldo_sistema, data_atualizacao').eq('organizacao_id', organizacao_id).gte('data_atualizacao', sistInicio).lte('data_atualizacao', sistFim).order('data_atualizacao', { ascending: false });
+      
+      // ALTERAÇÃO CIRÚRGICA: Filtrar estoque pela data_referencia (dia exato)
+      const { data: estoqueSistema } = await supabase.from('estoque_sistema')
+        .select('sku_codigo, saldo_sistema, data_atualizacao')
+        .eq('organizacao_id', organizacao_id)
+        .eq('data_referencia', dataIso) 
+        .order('data_atualizacao', { ascending: false });
 
       const mapaSistema = new Map();
       estoqueSistema?.forEach(e => {
@@ -185,7 +182,7 @@ export default function TelaConsultaSaldos() {
   };
 
   useFocusEffect(useCallback(() => { 
-    buscarSupervisores(); // Carrega a lista de filtros da empresa logada
+    buscarSupervisores();
     buscarDados(); 
   }, [supervisorAtivo, dataSelecionada]));
 
