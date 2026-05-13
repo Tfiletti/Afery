@@ -112,6 +112,7 @@ export default function HubAdministrativo() {
     finally { setCarregando(false); }
   };
 
+  // --- FUNÇÃO AJUSTADA: EXCEL COM FILTROS E CONGELAMENTO ---
   const exportarExcelAuditoria = async () => {
     setCarregando(true);
     try {
@@ -121,6 +122,7 @@ export default function HubAdministrativo() {
       const headerInf = ["SKU", "DESCRIÇÃO", "RESPONSÁVEL"]; 
       const merges = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]; 
       const colWidths = [{ wch: 15 }, { wch: 45 }, { wch: 20 }];
+
       datasPeriodo.forEach((d, i) => {
         const dataStr = d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
         headerSup.push(dataStr, "", "", "");
@@ -129,6 +131,7 @@ export default function HubAdministrativo() {
         merges.push({ s: { r: 0, c: colStart }, e: { r: 0, c: colStart + 3 } });
         colWidths.push({ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 });
       });
+
       const rows = [headerSup, headerInf];
       itensBase.forEach(item => {
         const row: any[] = [item.sku_codigo, item.descricao, item.responsavel];
@@ -142,9 +145,21 @@ export default function HubAdministrativo() {
         });
         rows.push(row);
       });
+
       const ws = XLSX.utils.aoa_to_sheet(rows);
+      
+      // AJUSTE CIRÚRGICO: CONGELAMENTO DE PAINÉIS (2 Linhas do topo e 3 Colunas da esquerda)
+      ws['!views'] = [{ state: 'frozen', xSplit: 3, ySplit: 2 }];
+      
+      // AJUSTE CIRÚRGICO: FILTROS AUTOMÁTICOS (Começando da linha 2 - cabeçalhos das colunas)
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+      ws['!autofilter'] = { 
+        ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: range.e.r, c: range.e.c } }) 
+      };
+
       ws['!merges'] = merges;
       ws['!cols'] = colWidths;
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "AFERY MASTER");
       const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
@@ -165,36 +180,20 @@ export default function HubAdministrativo() {
   const baixarTemplateGestao = async () => {
     try {
       const { data: itens } = await supabase.from('itens').select('*, familias(nome)').eq('organizacao_id', organizacao_id);
-      
       const hoje = new Date();
       const dataExcelSerial = 25569.0 + ((hoje.getTime() - (hoje.getTimezoneOffset() * 60000)) / (86400 * 1000));
 
       const rowsGestao = [["SKU", "DESCRIÇÃO", "FAMÍLIA", "LOCAL", "UNIDADE", "RESPONSÁVEL", "PREÇO_UNIT"]];
-      
       itens?.forEach(i => {
-        rowsGestao.push([
-          String(i.sku_codigo), 
-          i.descricao, 
-          i.familias?.nome || "", 
-          i.localizacao || "", 
-          i.unidade_medida || "KG", 
-          i.responsavel || "", 
-          i.preco_unitario || 0
-        ]);
+        rowsGestao.push([String(i.sku_codigo), i.descricao, i.familias?.nome || "", i.localizacao || "", i.unidade_medida || "KG", i.responsavel || "", i.preco_unitario || 0]);
       });
 
       const rowsSaldo = [["DATA", "SKU", "VALOR_SISTEMA", "RESPONSÁVEL"]];
       itens?.forEach(i => {
-        rowsSaldo.push([
-          { v: dataExcelSerial, t: 'n', z: 'dd/mm/yyyy' }, 
-          String(i.sku_codigo), 
-          "", 
-          i.responsavel || "" 
-        ]);
+        rowsSaldo.push([{ v: dataExcelSerial, t: 'n', z: 'dd/mm/yyyy' }, String(i.sku_codigo), "", i.responsavel || ""]);
       });
 
       const wb = XLSX.utils.book_new();
-      
       const wsGestao = XLSX.utils.aoa_to_sheet(rowsGestao);
       
       const rangeGestao = XLSX.utils.decode_range(wsGestao['!ref'] || 'A1:A1');
@@ -207,7 +206,6 @@ export default function HubAdministrativo() {
       wsGestao['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }, { wch: 15 }];
       
       const wsSaldo = XLSX.utils.aoa_to_sheet(rowsSaldo);
-      
       const rangeSaldo = XLSX.utils.decode_range(wsSaldo['!ref'] || 'A1:A1');
       for (let R = 1; R <= rangeSaldo.e.r; ++R) { 
         const cellAddress = XLSX.utils.encode_cell({c: 1, r: R}); 
@@ -236,41 +234,34 @@ export default function HubAdministrativo() {
       const conteudo = await FileSystem.readAsStringAsync(res.assets[0].uri, { encoding: 'base64' });
       const wb = XLSX.read(conteudo, { type: 'base64' });
 
-      // 1. GESTAO_MASTER (Cadastro)
       const sheetGestao = wb.Sheets["GESTAO_MASTER"];
       if (sheetGestao) {
         const dadosGestao = XLSX.utils.sheet_to_json(sheetGestao) as any[];
         
-        // Mantém a criação das áreas como estava no código antigo (onConflict: 'nome')
         const nomesAreas = Array.from(new Set(dadosGestao.map(d => String(d.LOCAL || '').trim()).filter(Boolean)));
         if (nomesAreas.length > 0) await supabase.from('areas').upsert(nomesAreas.map(nome => ({ nome, organizacao_id, ativo: true })), { onConflict: 'nome' });
 
-        // --- CORREÇÃO CIRÚRGICA: Lógica Antiga Restaurada para Famílias ---
+        // --- LÓGICA ANTIGA RESTAURADA PARA FAMÍLIAS (CONFORME SOLICITADO) ---
         const nomesFamilias = Array.from(new Set(dadosGestao.map(d => String(d.FAMÍLIA || '').trim()).filter(Boolean)));
         if (nomesFamilias.length > 0) await supabase.from('familias').upsert(nomesFamilias.map(nome => ({ nome, organizacao_id, ativo: true })), { onConflict: 'nome' });
 
         const { data: famsDB } = await supabase.from('familias').select('id, nome').eq('organizacao_id', organizacao_id);
-        
-        // Usa a busca normal sem o toLowerCase, igual ao antigo que funcionava
         const mapaFamilias = new Map(famsDB?.map(f => [f.nome, f.id]));
 
-        const itensUpsert = dadosGestao.map(d => {
-          return {
-            sku_codigo: String(d.SKU).trim(),
-            descricao: d.DESCRIÇÃO,
-            familia_id: mapaFamilias.get(String(d.FAMÍLIA || '').trim()), // Busca idêntica ao antigo
-            localizacao: String(d.LOCAL || '').trim(), // Adição do campo Local
-            unidade_medida: d.UNIDADE || 'KG',
-            responsavel: d.RESPONSÁVEL,
-            preco_unitario: parseNum(d.PREÇO_UNIT),
-            organizacao_id,
-            ativo: true
-          };
-        });
+        const itensUpsert = dadosGestao.map(d => ({
+          sku_codigo: String(d.SKU).trim(),
+          descricao: d.DESCRIÇÃO,
+          familia_id: mapaFamilias.get(String(d.FAMÍLIA || '').trim()), 
+          localizacao: String(d.LOCAL || '').trim(), 
+          unidade_medida: d.UNIDADE || 'KG',
+          responsavel: d.RESPONSÁVEL,
+          preco_unitario: parseNum(d.PREÇO_UNIT),
+          organizacao_id,
+          ativo: true
+        }));
         await supabase.from('itens').upsert(itensUpsert, { onConflict: 'sku_codigo' });
       }
 
-      // 2. SALDO_SISTEMA (Ajuste cirúrgico: Agrupamento e Soma mantidos da versão nova)
       const sheetSaldo = wb.Sheets["SALDO_SISTEMA"];
       if (sheetSaldo) {
         const dadosSaldo = XLSX.utils.sheet_to_json(sheetSaldo) as any[];
