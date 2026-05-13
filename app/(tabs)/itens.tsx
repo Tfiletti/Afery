@@ -34,24 +34,31 @@ export default function TelaDeItens() {
 
   useEffect(() => {
     async function buscarItens() {
-      if (!idDaFamilia || !organizacao_id) {
+      if (!organizacao_id) {
         setCarregando(false);
         return; 
       }
       
       try {
-        const { data, error } = await supabase
+        // 1. Iniciamos a query base filtrando pela organização
+        let query = supabase
           .from('itens')
           .select('*')
-          .eq('organizacao_id', organizacao_id)
-          .eq('familia_id', idDaFamilia)
-          .order('descricao');
+          .eq('organizacao_id', organizacao_id);
+
+        // 2. AJUSTE CIRÚRGICO: Se o ID for 'todos', não aplicamos o filtro de familia_id
+        if (idDaFamilia && idDaFamilia !== 'todos') {
+          query = query.eq('familia_id', idDaFamilia);
+        }
+
+        // 3. Ordenamos e executamos
+        const { data, error } = await query.order('descricao');
           
         if (error) throw error;
         if (data) setItens(data);
       } catch (error: any) {
-        console.error("Erro ao buscar itens da família:", error);
-        Alert.alert("Erro", "Não foi possível carregar os itens desta família.");
+        console.error("Erro ao buscar itens:", error);
+        Alert.alert("Erro", "Não foi possível carregar os itens.");
       } finally {
         setCarregando(false);
       }
@@ -93,7 +100,6 @@ export default function TelaDeItens() {
             <Text style={styles.subtitle}> Selecione o item abaixo:</Text>
         </View>
 
-        {/* BARRA DE PESQUISA - COR DO TEXTO FIXADA */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={18} color="#94A3B8" />
           <TextInput
@@ -139,7 +145,7 @@ export default function TelaDeItens() {
               <View style={styles.emptyContainer}>
                 <Ionicons name="cube-outline" size={36} color="#CBD5E1" />
                 <Text style={styles.emptyText}>
-                    {busca ? "Nenhum material encontrado." : `Nenhum material cadastrado nesta família.`}
+                    {busca ? "Nenhum material encontrado." : `Nenhum material cadastrado.`}
                 </Text>
               </View>
             }
@@ -152,7 +158,6 @@ export default function TelaDeItens() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
-  
   header: { 
     backgroundColor: '#FFFFFF', 
     paddingBottom: 12, 
@@ -166,9 +171,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 5 },
   headerTitle: { fontSize: 15, color: '#1E3A8A', fontWeight: '900', textTransform: 'uppercase' },
-  
   content: { flex: 1, paddingHorizontal: 20 },
-  
   subHeader: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -181,16 +184,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start'
   },
   subtitle: { fontSize: 10, color: '#475569', fontWeight: 'bold', textTransform: 'uppercase' },
-  
-  /* --- BARRA DE PESQUISA BLINDADA --- */
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF', // Fundo sempre branco
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     paddingHorizontal: 12,
     marginBottom: 15,
-    height: 48, // Altura confortável para o dedo
+    height: 48,
     elevation: 2,
     borderWidth: 1,
     borderColor: '#E5E7EB'
@@ -199,15 +200,13 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     fontSize: 15,
-    color: '#1E293B', // TEXTO SEMPRE ESCURO (AZUL QUASE PRETO)
-    fontWeight: '600', // Texto levemente mais grosso para facilitar leitura
+    color: '#1E293B',
+    fontWeight: '600',
   },
-
-  /* --- CARTÕES --- */
   cardItem: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#FFFFFF', // Fundo sempre branco
+    backgroundColor: '#FFFFFF',
     padding: 14,
     borderRadius: 10,
     marginBottom: 10,
@@ -221,7 +220,7 @@ const styles = StyleSheet.create({
   codigoSistema: { 
     fontSize: 16, 
     fontWeight: '900', 
-    color: '#1E3A8A' // Texto do SKU sempre visível
+    color: '#1E3A8A'
   },
   descricao: { 
     fontSize: 11, 
@@ -236,7 +235,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginLeft: 10
   },
-  
   emptyContainer: { alignItems: 'center', marginTop: 60 },
   emptyText: { textAlign: 'center', marginTop: 10, color: '#94A3B8', fontSize: 14 }
 });

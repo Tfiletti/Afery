@@ -1,15 +1,16 @@
 // app/admin/index.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Image, Platform } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const AZUL_TECH = '#1E3A8A';
 
 export default function AdminHub() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // "Limpando o percurso": Menu com a nova Solução Matadora incluída
   const menuOptions = [
     {
       id: 'importacao',
@@ -17,7 +18,7 @@ export default function AdminHub() {
       description: 'Baixe a base atual e suba atualizações de itens e saldos via planilha.',
       icon: 'document-text-outline',
       route: '/admin/importacao',
-      color: '#F59E0B' // Um laranja/âmbar para destacar como ferramenta de gestão
+      color: '#F59E0B' 
     },
     {
       id: 'equipe',
@@ -57,13 +58,12 @@ export default function AdminHub() {
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      {/* =============== CABEÇALHO CLEAN =============== */}
-      <View style={[styles.cleanHeader, { paddingTop: insets.top + 10 }]}>
+      {/* =============== CABEÇALHO PADRÃO AFERY - AJUSTADO =============== */}
+      <View style={[styles.cleanHeader, { paddingTop: insets.top + 20 }]}>
         <View style={styles.logoAndText}>
           <Image 
-            source={require('../../assets/images/icon.png')} // Atualizado para o ícone padrão Afery
-            style={{ width: 45, height: 45, borderRadius: 8 }} 
-            resizeMode="contain"
+            source={require('../../assets/images/icon.png')} 
+            style={styles.logoIcon} 
           />
           <View style={styles.brandTitleContainer}>
             <Text style={styles.brandTitle}>AFERY</Text>
@@ -116,19 +116,36 @@ const styles = StyleSheet.create({
   cleanHeader: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingBottom: 20,
     borderBottomWidth: 1,
     borderColor: '#E2E8F0',
-    elevation: 3,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
   },
   logoAndText: { flexDirection: 'row', alignItems: 'center' },
+  logoIcon: { 
+    width: 48, 
+    height: 48, 
+    borderRadius: 12 
+  },
   brandTitleContainer: { marginLeft: 12 },
-  brandTitle: { fontSize: 24, fontWeight: '900', color: '#1E3A8A', letterSpacing: 0.5 },
-  brandSubtitle: { fontSize: 12, color: '#64748B', fontWeight: 'bold' },
+  brandTitle: { 
+    fontSize: 24, 
+    fontWeight: '900', 
+    color: AZUL_TECH, 
+    letterSpacing: -0.5,
+    lineHeight: 28 
+  },
+  brandSubtitle: { 
+    fontSize: 11, 
+    color: '#64748B', 
+    fontWeight: '800', 
+    textTransform: 'uppercase',
+    marginTop: -2
+  },
   grid: { padding: 16, flex: 1 },
   card: {
     flexDirection: 'row', 
@@ -157,7 +174,7 @@ const styles = StyleSheet.create({
     width: 50,           
     height: 50,         
     borderRadius: 25,   
-    backgroundColor: '#1E3A8A',
+    backgroundColor: AZUL_TECH,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,

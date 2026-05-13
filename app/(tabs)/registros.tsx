@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, StatusBar, TextInput, Image } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, StatusBar, TextInput, Image, Platform } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons'; 
 import { supabase } from '../../src/supabase';
@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // 1. IMPORTAÇÃO DO NOSSO CÉREBRO SAAS
 import { useAuth } from '../../src/context/AuthContext'; 
+
+const AZUL_TECH = '#1E3A8A';
 
 export default function TelaRegistros() {
   const [registros, setRegistros] = useState<any[]>([]);
@@ -81,13 +83,12 @@ export default function TelaRegistros() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      {/* HEADER PADRÃO AFERY */}
-      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
+      {/* HEADER PADRÃO AFERY - AJUSTADO */}
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.brandContainer}>
           <Image 
             source={require('../../assets/images/icon.png')} 
             style={styles.logoIcon} 
-            resizeMode="contain" 
           />
           <View>
             <Text style={styles.logoAFERY}>AFERY</Text>
@@ -96,7 +97,7 @@ export default function TelaRegistros() {
         </View>
 
         <View style={styles.headerContent}>
-            <Ionicons name="time-outline" size={14} color="#1E3A8A" />
+            <Ionicons name="time-outline" size={14} color={AZUL_TECH} />
             <Text style={styles.txtCiclo}> Ciclo: 05h às 05h ({obterFiltroTurno().exibicao})</Text>
         </View>
 
@@ -121,7 +122,7 @@ export default function TelaRegistros() {
       <FlatList 
         data={registrosFiltrados}
         keyExtractor={(item) => item.id.toString()}
-        refreshControl={<RefreshControl refreshing={carregando} onRefresh={buscarRegistros} color="#1E3A8A" />}
+        refreshControl={<RefreshControl refreshing={carregando} onRefresh={buscarRegistros} color={AZUL_TECH} />}
         contentContainerStyle={{ 
             paddingBottom: insets.bottom + 120,
             paddingTop: 10
@@ -144,7 +145,7 @@ export default function TelaRegistros() {
                 <View style={styles.iconRow}>
                   {item.foto_url && (
                     <View style={styles.badgeIcon}>
-                        <Ionicons name="camera" size={12} color="#1E3A8A" />
+                        <Ionicons name="camera" size={12} color={AZUL_TECH} />
                     </View>
                   )}
                   {item.observacao && item.observacao !== '' && item.observacao !== 'EMPTY' && (
@@ -183,34 +184,35 @@ export default function TelaRegistros() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: { 
-    backgroundColor: '#FFF', 
-    paddingBottom: 15, 
+    backgroundColor: '#FFFFFF', 
+    paddingBottom: 20, 
     paddingHorizontal: 20, 
-    elevation: 2, 
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    borderBottomWidth: 1, 
+    borderBottomColor: '#E2E8F0', 
+    elevation: 4 
   },
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12
+    marginBottom: 15
   },
   logoIcon: {
-    width: 38,
-    height: 38,
-    marginRight: 10
+    width: 48,
+    height: 48,
+    marginRight: 12,
+    borderRadius: 12
   },
   logoAFERY: {
-    color: '#1E3A8A',
-    fontSize: 20,
-    fontWeight: '900'
+    fontSize: 24, 
+    fontWeight: '900', 
+    color: AZUL_TECH, 
+    letterSpacing: -0.5,
+    lineHeight: 28 
   },
   headerSubtitle: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '700',
+    fontSize: 11, 
+    color: '#64748B', 
+    fontWeight: '800', 
     textTransform: 'uppercase',
     marginTop: -2
   },
@@ -222,17 +224,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 20,
     alignSelf: 'flex-start',
-    paddingHorizontal: 12
+    paddingHorizontal: 12,
+    marginBottom: 5
   },
-  txtCiclo: { fontSize: 10, fontWeight: 'bold', color: '#1E3A8A' },
+  txtCiclo: { fontSize: 10, fontWeight: 'bold', color: AZUL_TECH },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
     borderRadius: 12,
     paddingHorizontal: 12,
-    marginTop: 15,
+    marginTop: 10,
     height: 45,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
   },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 14, color: '#1E293B', fontWeight: '500' },
   card: { 
@@ -243,7 +248,7 @@ const styles = StyleSheet.create({
     borderRadius: 16, 
     elevation: 3, 
     borderLeftWidth: 6, 
-    borderLeftColor: '#1E3A8A',
+    borderLeftColor: AZUL_TECH,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -262,21 +267,5 @@ const styles = StyleSheet.create({
   txtPeso: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
   unitText: { fontSize: 10, color: '#94A3B8', fontWeight: 'bold', textTransform: 'uppercase' },
   emptyContainer: { alignItems: 'center', marginTop: 100 },
-  emptyText: { marginTop: 10, color: '#94A3B8', fontSize: 14 },
-  
-  // Botões Utilitários (Para você usar na página de formulário)
-  btnSave: {
-    backgroundColor: '#1E3A8A',
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center'
-  },
-  btnCancel: {
-    backgroundColor: '#F1F5F9',
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center'
-  },
-  btnTextSave: { color: '#FFF', fontWeight: 'bold' },
-  btnTextCancel: { color: '#64748B', fontWeight: 'bold' }
+  emptyText: { marginTop: 10, color: '#94A3B8', fontSize: 14 }
 });

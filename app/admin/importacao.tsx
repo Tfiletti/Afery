@@ -112,7 +112,6 @@ export default function HubAdministrativo() {
     finally { setCarregando(false); }
   };
 
-  // --- FUNÇÃO AJUSTADA: EXCEL COM FILTROS E CONGELAMENTO ---
   const exportarExcelAuditoria = async () => {
     setCarregando(true);
     try {
@@ -148,14 +147,9 @@ export default function HubAdministrativo() {
 
       const ws = XLSX.utils.aoa_to_sheet(rows);
       
-      // AJUSTE CIRÚRGICO: CONGELAMENTO DE PAINÉIS (2 Linhas do topo e 3 Colunas da esquerda)
       ws['!views'] = [{ state: 'frozen', xSplit: 3, ySplit: 2 }];
-      
-      // AJUSTE CIRÚRGICO: FILTROS AUTOMÁTICOS (Começando da linha 2 - cabeçalhos das colunas)
       const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
-      ws['!autofilter'] = { 
-        ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: range.e.r, c: range.e.c } }) 
-      };
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: range.e.r, c: range.e.c } }) };
 
       ws['!merges'] = merges;
       ws['!cols'] = colWidths;
@@ -177,23 +171,42 @@ export default function HubAdministrativo() {
     return parseFloat(s) || 0;
   };
 
+  // --- AJUSTE CIRÚRGICO: ABA SALDO_SISTEMA COM DESCRIÇÃO ---
   const baixarTemplateGestao = async () => {
     try {
       const { data: itens } = await supabase.from('itens').select('*, familias(nome)').eq('organizacao_id', organizacao_id);
+      
       const hoje = new Date();
       const dataExcelSerial = 25569.0 + ((hoje.getTime() - (hoje.getTimezoneOffset() * 60000)) / (86400 * 1000));
 
       const rowsGestao = [["SKU", "DESCRIÇÃO", "FAMÍLIA", "LOCAL", "UNIDADE", "RESPONSÁVEL", "PREÇO_UNIT"]];
+      
       itens?.forEach(i => {
-        rowsGestao.push([String(i.sku_codigo), i.descricao, i.familias?.nome || "", i.localizacao || "", i.unidade_medida || "KG", i.responsavel || "", i.preco_unitario || 0]);
+        rowsGestao.push([
+          String(i.sku_codigo), 
+          i.descricao, 
+          i.familias?.nome || "", 
+          i.localizacao || "", 
+          i.unidade_medida || "KG", 
+          i.responsavel || "", 
+          i.preco_unitario || 0
+        ]);
       });
 
-      const rowsSaldo = [["DATA", "SKU", "VALOR_SISTEMA", "RESPONSÁVEL"]];
+      // AJUSTE: Adição da coluna DESCRIÇÃO
+      const rowsSaldo = [["DATA", "SKU", "DESCRIÇÃO", "VALOR_SISTEMA", "RESPONSÁVEL"]];
       itens?.forEach(i => {
-        rowsSaldo.push([{ v: dataExcelSerial, t: 'n', z: 'dd/mm/yyyy' }, String(i.sku_codigo), "", i.responsavel || ""]);
+        rowsSaldo.push([
+          { v: dataExcelSerial, t: 'n', z: 'dd/mm/yyyy' }, 
+          String(i.sku_codigo), 
+          i.descricao || "", // Adicionando a descrição dinâmica
+          "", 
+          i.responsavel || "" 
+        ]);
       });
 
       const wb = XLSX.utils.book_new();
+      
       const wsGestao = XLSX.utils.aoa_to_sheet(rowsGestao);
       
       const rangeGestao = XLSX.utils.decode_range(wsGestao['!ref'] || 'A1:A1');
@@ -206,6 +219,7 @@ export default function HubAdministrativo() {
       wsGestao['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }, { wch: 15 }];
       
       const wsSaldo = XLSX.utils.aoa_to_sheet(rowsSaldo);
+      
       const rangeSaldo = XLSX.utils.decode_range(wsSaldo['!ref'] || 'A1:A1');
       for (let R = 1; R <= rangeSaldo.e.r; ++R) { 
         const cellAddress = XLSX.utils.encode_cell({c: 1, r: R}); 
@@ -213,7 +227,8 @@ export default function HubAdministrativo() {
         wsSaldo[cellAddress].t = 's'; 
         wsSaldo[cellAddress].z = '@'; 
       }
-      wsSaldo['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 20 }];
+      // AJUSTE: Largura da nova coluna Descrição (wch: 45) no índice 2
+      wsSaldo['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 45 }, { wch: 20 }, { wch: 20 }];
 
       XLSX.utils.book_append_sheet(wb, wsGestao, "GESTAO_MASTER");
       XLSX.utils.book_append_sheet(wb, wsSaldo, "SALDO_SISTEMA");
@@ -241,24 +256,25 @@ export default function HubAdministrativo() {
         const nomesAreas = Array.from(new Set(dadosGestao.map(d => String(d.LOCAL || '').trim()).filter(Boolean)));
         if (nomesAreas.length > 0) await supabase.from('areas').upsert(nomesAreas.map(nome => ({ nome, organizacao_id, ativo: true })), { onConflict: 'nome' });
 
-        // --- LÓGICA ANTIGA RESTAURADA PARA FAMÍLIAS (CONFORME SOLICITADO) ---
         const nomesFamilias = Array.from(new Set(dadosGestao.map(d => String(d.FAMÍLIA || '').trim()).filter(Boolean)));
         if (nomesFamilias.length > 0) await supabase.from('familias').upsert(nomesFamilias.map(nome => ({ nome, organizacao_id, ativo: true })), { onConflict: 'nome' });
 
         const { data: famsDB } = await supabase.from('familias').select('id, nome').eq('organizacao_id', organizacao_id);
         const mapaFamilias = new Map(famsDB?.map(f => [f.nome, f.id]));
 
-        const itensUpsert = dadosGestao.map(d => ({
-          sku_codigo: String(d.SKU).trim(),
-          descricao: d.DESCRIÇÃO,
-          familia_id: mapaFamilias.get(String(d.FAMÍLIA || '').trim()), 
-          localizacao: String(d.LOCAL || '').trim(), 
-          unidade_medida: d.UNIDADE || 'KG',
-          responsavel: d.RESPONSÁVEL,
-          preco_unitario: parseNum(d.PREÇO_UNIT),
-          organizacao_id,
-          ativo: true
-        }));
+        const itensUpsert = dadosGestao.map(d => {
+          return {
+            sku_codigo: String(d.SKU).trim(),
+            descricao: d.DESCRIÇÃO,
+            familia_id: mapaFamilias.get(String(d.FAMÍLIA || '').trim()), 
+            localizacao: String(d.LOCAL || '').trim(), 
+            unidade_medida: d.UNIDADE || 'KG',
+            responsavel: d.RESPONSÁVEL,
+            preco_unitario: parseNum(d.PREÇO_UNIT),
+            organizacao_id,
+            ativo: true
+          };
+        });
         await supabase.from('itens').upsert(itensUpsert, { onConflict: 'sku_codigo' });
       }
 

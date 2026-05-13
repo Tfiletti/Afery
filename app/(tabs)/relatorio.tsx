@@ -109,7 +109,6 @@ export default function TelaConsultaSaldos() {
     try {
         await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
         
-        // ALTERAÇÃO CIRÚRGICA: Deletar baseado na data de referência
         await supabase.from('estoque_sistema').delete()
           .eq('sku_codigo', item.id)
           .eq('organizacao_id', organizacao_id)
@@ -136,7 +135,6 @@ export default function TelaConsultaSaldos() {
 
       const { data: contagens } = await supabase.from('contagens').select('item_id, peso_liquido_calculado, data_hora, foto_url, observacao').eq('organizacao_id', organizacao_id).gte('data_hora', fisInicio).lt('data_hora', fisFim);
       
-      // ALTERAÇÃO CIRÚRGICA: Filtrar estoque pela data_referencia (dia exato)
       const { data: estoqueSistema } = await supabase.from('estoque_sistema')
         .select('sku_codigo, saldo_sistema, data_atualizacao')
         .eq('organizacao_id', organizacao_id)
@@ -222,12 +220,13 @@ export default function TelaConsultaSaldos() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      <View style={styles.headerBranco}>
+      {/* HEADER PADRÃO AFERY - AJUSTADO */}
+      <View style={[styles.headerBranco, { paddingTop: insets.top + 20 }]}>
         <View style={styles.logoRow}>
           <Image source={require('../../assets/images/icon.png')} style={styles.tinyLogo} />
           <View>
-            <Text style={styles.titlePrincipal}>Painel de Inventário</Text>
-            <Text style={styles.subtitle}>Relatório de Desvios</Text>
+            <Text style={styles.titlePrincipal}>AFERY</Text>
+            <Text style={styles.subtitle}>Painel de Inventário</Text>
           </View>
         </View>
         
@@ -330,12 +329,46 @@ export default function TelaConsultaSaldos() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  headerBranco: { backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'ios' ? 60 : 45, paddingBottom: 20, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 4 },
+  headerBranco: { 
+    backgroundColor: '#FFFFFF', 
+    paddingBottom: 20, 
+    paddingHorizontal: 20, 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#E2E8F0', 
+    elevation: 4 
+  },
   logoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  tinyLogo: { width: 45, height: 45, marginRight: 12, borderRadius: 8 },
-  titlePrincipal: { fontSize: 20, fontWeight: '900', color: AZUL_TECH }, 
-  subtitle: { fontSize: 11, color: '#64748B', fontWeight: '700', textTransform: 'uppercase' },
-  searchBar: { backgroundColor: '#F1F5F9', flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, height: 45, marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0' },
+  tinyLogo: { 
+    width: 48, 
+    height: 48, 
+    marginRight: 12, 
+    borderRadius: 12 
+  },
+  titlePrincipal: { 
+    fontSize: 24, 
+    fontWeight: '900', 
+    color: AZUL_TECH,
+    letterSpacing: -0.5,
+    lineHeight: 28 
+  },
+  subtitle: { 
+    fontSize: 11, 
+    color: '#64748B', 
+    fontWeight: '800', 
+    textTransform: 'uppercase',
+    marginTop: -2
+  },
+  searchBar: { 
+    backgroundColor: '#F1F5F9', 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    borderRadius: 12, 
+    paddingHorizontal: 12, 
+    height: 45, 
+    marginVertical: 10, 
+    borderWidth: 1, 
+    borderColor: '#E2E8F0' 
+  },
   inputBusca: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1E293B' },
   barraFiltro: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
   dataContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },

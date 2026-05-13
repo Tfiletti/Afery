@@ -1,31 +1,29 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput, Alert, Image } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, StatusBar, TextInput, Alert, Image, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons'; 
 import { useAuth } from '../../src/context/AuthContext'; 
 
-// --- HEADER PADRÃO AFERY ---
+const AZUL_TECH = '#1E3A8A';
+
+// --- HEADER PADRÃO AFERY ATUALIZADO ---
 const HeaderHome = ({ topInset }: { topInset: number }) => (
-  <View style={[styles.header, { paddingTop: topInset + 10 }]}>
-    {/* Inserção do logotipo conforme solicitado */}
+  <View style={[styles.header, { paddingTop: topInset + 20 }]}>
     <Image 
       source={require('../../assets/images/icon.png')} 
       style={styles.logoIcon} 
-      resizeMode="contain" 
     />
     <View style={styles.headerTextContainer}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-        <Text style={styles.logoAFERY}>AFERY</Text>
-      </View>
+      <Text style={styles.logoAFERY}>AFERY</Text>
       <Text style={styles.headerSubtitle}>Sistemas de Inventário</Text>
     </View>
   </View>
 );
 
 export default function TelaInicial() {
-  const [familias, setFamilias] = useState([]);
+  const [familias, setFamilias] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState(''); 
 
@@ -43,7 +41,14 @@ export default function TelaInicial() {
         .eq('organizacao_id', organizacao_id)
         .order('nome', { ascending: true });
 
-      if (data) setFamilias(data);
+      if (data) {
+        // AJUSTE CIRÚRGICO: Injetando a categoria global no topo do array
+        const listaComTodos = [
+          { id: 'todos', nome: 'Todos os Itens', isGlobal: true },
+          ...data
+        ];
+        setFamilias(listaComTodos);
+      }
       setCarregando(false);
     }
     buscarFamilias();
@@ -81,13 +86,13 @@ export default function TelaInicial() {
       <HeaderHome topInset={insets.top} />
 
       <View style={styles.content}>
-        <Text style={styles.sectionTitle}>Selecione uma família:</Text>
+        <Text style={styles.sectionTitle}>Selecione uma categoria:</Text>
 
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={16} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar família..."
+            placeholder="Buscar categoria..."
             placeholderTextColor="#94A3B8"
             value={busca}
             onChangeText={setBusca}
@@ -101,7 +106,7 @@ export default function TelaInicial() {
         </View>
 
         {carregando ? (
-          <ActivityIndicator size="large" color="#1E3A8A" style={{ marginTop: 50 }} />
+          <ActivityIndicator size="large" color={AZUL_TECH} style={{ marginTop: 50 }} />
         ) : (
           <FlatList
             data={familiasFiltradas} 
@@ -110,23 +115,27 @@ export default function TelaInicial() {
             contentContainerStyle={{ paddingBottom: insets.bottom + 160 }}
             renderItem={({ item }) => (
               <TouchableOpacity 
-                style={styles.cardFamilias} 
+                style={[styles.cardFamilias, item.isGlobal && { borderLeftColor: '#F59E0B', backgroundColor: '#FFFBEB' }]} 
                 onPress={() => aoClicarNaFamilia(item.id, item.nome)} 
                 activeOpacity={0.7}
               >
                 <View style={styles.cardHeader}>
-                  <Text style={styles.cardTag}>Família de Materiais</Text>
+                  <Text style={[styles.cardTag, item.isGlobal && { color: '#D97706' }]}>
+                    {item.isGlobal ? "Busca Global" : "Família de Materiais"}
+                  </Text>
                   <Ionicons name="chevron-forward" size={14} color="#CBD5E1" />
                 </View>
                 <Text style={styles.cardTitle}>{item.nome}</Text>
-                <Text style={styles.cardDescription}>Toque para iniciar a conferência deste grupo</Text>
+                <Text style={styles.cardDescription}>
+                  {item.isGlobal ? "Toque para ver e buscar em todo o catálogo" : "Toque para iniciar a conferência deste grupo"}
+                </Text>
               </TouchableOpacity>
             )}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Ionicons name="file-tray-outline" size={32} color="#CBD5E1" />
                 <Text style={styles.emptyText}>
-                  {busca ? "Nenhuma família encontrada." : "Aguardando cadastro de famílias."}
+                  {busca ? "Nenhuma categoria encontrada." : "Aguardando cadastro de famílias."}
                 </Text>
               </View>
             }
@@ -159,22 +168,35 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
   header: { 
     backgroundColor: '#FFFFFF', 
-    paddingBottom: 15, 
+    paddingBottom: 20, 
     paddingHorizontal: 20, 
     flexDirection: 'row', 
     alignItems: 'center', 
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    elevation: 2 
+    borderBottomColor: '#E2E8F0',
+    elevation: 4 
   },
   logoIcon: { 
-    width: 42, 
-    height: 42, 
-    marginRight: 12 
+    width: 48, 
+    height: 48, 
+    marginRight: 12,
+    borderRadius: 12 
   },
   headerTextContainer: { justifyContent: 'center' },
-  logoAFERY: { color: '#1E3A8A', fontSize: 22, fontWeight: '900' },
-  headerSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '700', marginTop: -2 },
+  logoAFERY: { 
+    color: AZUL_TECH, 
+    fontSize: 24, 
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    lineHeight: 28 
+  },
+  headerSubtitle: { 
+    fontSize: 11, 
+    color: '#64748B', 
+    fontWeight: '800', 
+    textTransform: 'uppercase',
+    marginTop: -2 
+  },
   
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   sectionTitle: { fontSize: 14, color: '#4B5563', fontWeight: 'bold', marginBottom: 10 },
@@ -198,7 +220,7 @@ const styles = StyleSheet.create({
     borderRadius: 10, 
     marginBottom: 10, 
     borderLeftWidth: 4, 
-    borderLeftColor: '#1E3A8A', // Alterado de laranja para Azul Tech
+    borderLeftColor: AZUL_TECH,
     elevation: 2,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
@@ -212,7 +234,7 @@ const styles = StyleSheet.create({
   fabAdmin: {
     position: 'absolute',
     left: 20, 
-    backgroundColor: '#1E3A8A', 
+    backgroundColor: AZUL_TECH, 
     width: 56,
     height: 56,
     borderRadius: 28,
