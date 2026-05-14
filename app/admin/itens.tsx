@@ -19,7 +19,7 @@ const COLORS = {
   text: '#1E293B', 
   border: '#E2E8F0',
   white: '#FFFFFF',
-  placeholder: '#94A3B8', 
+  placeholder: '#64748B', 
   cardSavedBg: '#F0FDF4', 
   cardAddBg: '#F0F9FF',   
 };
@@ -113,7 +113,14 @@ export default function ItensAdminScreen() {
   const iniciarEdicao = (item: any) => {
     setEditandoId(item.id); setCodigoErp(item.sku_codigo || ''); setDescricao(item.descricao || '');
     setFamiliaId(item.familia_id || ''); setUnidade(item.unidade_medida || 'UN');
-    setSupervisor(item.responsavel || ''); setPrecoUnitario(item.preco_unitario?.toString().replace('.', ',') || '');
+    setSupervisor(item.responsavel || ''); 
+    
+    // AJUSTE CIRÚRGICO: Se o preço for 0, deixa vazio para mostrar o placeholder
+    const precoTexto = item.preco_unitario && item.preco_unitario !== 0 
+      ? item.preco_unitario.toString().replace('.', ',') 
+      : '';
+    setPrecoUnitario(precoTexto);
+    
     carregarFatoresDoItem(item.id);
   };
 
@@ -133,7 +140,7 @@ export default function ItensAdminScreen() {
         fornecedor_id: fornecedorId,
         fator_palete: parseFloat(String(fatorPalete).replace(',', '.')) || 0,
         fator_caixa: parseFloat(String(fatorCaixa).replace(',', '.')) || 0,
-        peso_unitario_produto: parseFloat(String(pesoUnitarioProd).replace(',', '.')) || 0,
+        weight_unitario_produto: parseFloat(String(pesoUnitarioProd).replace(',', '.')) || 0,
         peso_saco_unitario: parseFloat(String(pesoSaco).replace(',', '.')) || 0,
         peso_caixa_unitaria: parseFloat(String(pesoCaixaUnit).replace(',', '.')) || 0,
       }, { onConflict: 'item_id, fornecedor_id' });
@@ -190,13 +197,38 @@ export default function ItensAdminScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>📦 Dados Principais</Text>
               <View style={styles.row}>
-                <TextInput style={[styles.input, { flex: 2, marginRight: 8 }]} placeholder="SKU" value={codigoErp} onChangeText={setCodigoErp} />
+                <TextInput 
+                  style={[styles.input, { flex: 2, marginRight: 8 }]} 
+                  placeholder="SKU" 
+                  placeholderTextColor={COLORS.placeholder}
+                  value={codigoErp} 
+                  onChangeText={setCodigoErp} 
+                />
                 <View style={[styles.pickerWrap, { flex: 1 }]}><Picker selectedValue={unidade} onValueChange={setUnidade} style={{marginTop: -4}}><Picker.Item label="UN" value="UN" /><Picker.Item label="KG" value="KG" /></Picker></View>
               </View>
-              <TextInput style={[styles.input, { marginBottom: 8 }]} placeholder="Descrição" value={descricao} onChangeText={setDescricao} />
+              <TextInput 
+                style={[styles.input, { marginBottom: 8 }]} 
+                placeholder="Descrição" 
+                placeholderTextColor={COLORS.placeholder}
+                value={descricao} 
+                onChangeText={setDescricao} 
+              />
               <View style={styles.row}>
-                <TextInput style={[styles.input, { flex: 2, marginRight: 8 }]} placeholder="Supervisor" value={supervisor} onChangeText={setSupervisor} />
-                <TextInput style={[styles.input, { flex: 1 }]} placeholder="R$ Preço" keyboardType="numeric" value={precoUnitario} onChangeText={setPrecoUnitario} />
+                <TextInput 
+                  style={[styles.input, { flex: 2, marginRight: 8 }]} 
+                  placeholder="Responsável" // AJUSTE CIRÚRGICO: Placeholder alterado
+                  placeholderTextColor={COLORS.placeholder}
+                  value={supervisor} 
+                  onChangeText={setSupervisor} 
+                />
+                <TextInput 
+                  style={[styles.input, { flex: 1 }]} 
+                  placeholder="R$ Preço" 
+                  placeholderTextColor={COLORS.placeholder}
+                  keyboardType="numeric" 
+                  value={precoUnitario} 
+                  onChangeText={setPrecoUnitario} 
+                />
               </View>
               <View style={styles.pickerWrapFull}><Picker selectedValue={familiaId} onValueChange={setFamiliaId} style={{marginTop: -4}}><Picker.Item label="Família..." value="" />{familias.map(f => <Picker.Item key={f.id} label={f.nome} value={f.id} />)}</Picker></View>
               <TouchableOpacity style={styles.saveButton} onPress={handleSalvarItem} disabled={salvando}>{salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>ATUALIZAR DADOS</Text>}</TouchableOpacity>
@@ -220,13 +252,13 @@ export default function ItensAdminScreen() {
                 <TouchableOpacity style={styles.btnNovoFornecedor} onPress={() => setModalFornecedor(true)}><Ionicons name="add" size={22} color="#FFF" /></TouchableOpacity>
               </View>
               <View style={[styles.row, { marginTop: 8 }]}>
-                <View style={{ flex: 1, marginRight: 6 }}><Text style={styles.miniLabel}>Palete</Text><TextInput style={styles.input} keyboardType="numeric" value={fatorPalete} onChangeText={setFatorPalete} /></View>
-                <View style={{ flex: 1, marginRight: 6 }}><Text style={styles.miniLabel}>Caixa</Text><TextInput style={styles.input} keyboardType="numeric" value={fatorCaixa} onChangeText={setFatorCaixa} /></View>
-                <View style={{ flex: 1 }}><Text style={styles.miniLabel}>Peso Unit.</Text><TextInput style={styles.input} keyboardType="numeric" value={pesoUnitarioProd} onChangeText={setPesoUnitarioProd} /></View>
+                <View style={{ flex: 1, marginRight: 6 }}><Text style={styles.miniLabel}>Palete</Text><TextInput style={styles.input} placeholderTextColor={COLORS.placeholder} keyboardType="numeric" value={fatorPalete} onChangeText={setFatorPalete} /></View>
+                <View style={{ flex: 1, marginRight: 6 }}><Text style={styles.miniLabel}>Caixa</Text><TextInput style={styles.input} placeholderTextColor={COLORS.placeholder} keyboardType="numeric" value={fatorCaixa} onChangeText={setFatorCaixa} /></View>
+                <View style={{ flex: 1 }}><Text style={styles.miniLabel}>Peso Unit.</Text><TextInput style={styles.input} placeholderTextColor={COLORS.placeholder} keyboardType="numeric" value={pesoUnitarioProd} onChangeText={setPesoUnitarioProd} /></View>
               </View>
               <View style={styles.row}>
-                 <View style={{ flex: 1, marginRight: 6 }}><Text style={styles.miniLabel}>Saco</Text><TextInput style={styles.input} keyboardType="numeric" value={pesoSaco} onChangeText={setPesoSaco} /></View>
-                 <View style={{ flex: 1 }}><Text style={styles.miniLabel}>Cx Unit</Text><TextInput style={styles.input} keyboardType="numeric" value={pesoCaixaUnit} onChangeText={setPesoCaixaUnit} /></View>
+                 <View style={{ flex: 1, marginRight: 6 }}><Text style={styles.miniLabel}>Saco</Text><TextInput style={styles.input} placeholderTextColor={COLORS.placeholder} keyboardType="numeric" value={pesoSaco} onChangeText={setPesoSaco} /></View>
+                 <View style={{ flex: 1 }}><Text style={styles.miniLabel}>Cx Unit</Text><TextInput style={styles.input} placeholderTextColor={COLORS.placeholder} keyboardType="numeric" value={pesoCaixaUnit} onChangeText={setPesoCaixaUnit} /></View>
               </View>
               <TouchableOpacity style={styles.saveFatorButton} onPress={handleSalvarFator} disabled={salvandoFator}>{salvandoFator ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>VINCULAR REGRA</Text>}</TouchableOpacity>
             </View>
@@ -241,19 +273,43 @@ export default function ItensAdminScreen() {
                 <View style={styles.card}>
                   <Text style={styles.cardTitle}>➕ Cadastro Rápido</Text>
                   <View style={styles.row}>
-                    <TextInput style={[styles.input, { flex: 2, marginRight: 8 }]} placeholder="SKU" value={codigoErp} onChangeText={setCodigoErp} />
+                    <TextInput 
+                      style={[styles.input, { flex: 2, marginRight: 8 }]} 
+                      placeholder="SKU" 
+                      placeholderTextColor={COLORS.placeholder}
+                      value={codigoErp} 
+                      onChangeText={setCodigoErp} 
+                    />
                     <View style={[styles.pickerWrap, { flex: 1 }]}><Picker selectedValue={unidade} onValueChange={setUnidade} style={{marginTop: -4}}><Picker.Item label="UN" value="UN" /><Picker.Item label="KG" value="KG" /></Picker></View>
                   </View>
-                  <TextInput style={[styles.input, { marginBottom: 8 }]} placeholder="Descrição do Item" value={descricao} onChangeText={setDescricao} />
+                  <TextInput 
+                    style={[styles.input, { marginBottom: 8 }]} 
+                    placeholder="Descrição do Item" 
+                    placeholderTextColor={COLORS.placeholder}
+                    value={descricao} 
+                    onChangeText={setDescricao} 
+                  />
                   <TouchableOpacity style={styles.saveButton} onPress={handleSalvarItem} disabled={salvando}>{salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>CADASTRAR ITEM</Text>}</TouchableOpacity>
                 </View>
-                <View style={styles.searchContainer}><Ionicons name="search" size={18} color={COLORS.placeholder} /><TextInput style={styles.searchInput} placeholder="Filtrar..." value={filtro} onChangeText={setFiltro} /></View>
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search" size={18} color={COLORS.placeholder} />
+                  <TextInput 
+                    style={styles.searchInput} 
+                    placeholder="Filtrar..." 
+                    placeholderTextColor={COLORS.placeholder}
+                    value={filtro} 
+                    onChangeText={setFiltro} 
+                  />
+                </View>
                 {loading && <ActivityIndicator size="small" color={COLORS.secondary} style={{ marginVertical: 10 }} />}
               </View>
             }
             renderItem={({ item }) => (
               <View style={styles.itemCard}>
-                <View style={styles.itemInfo}><Text style={styles.itemCode}>{item.sku_codigo}</Text><Text style={styles.itemName} numberOfLines={1}>{item.descricao}</Text></View>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemCode}>{item.sku_codigo}</Text>
+                  <Text style={styles.itemName} numberOfLines={1}>{item.descricao}</Text>
+                </View>
                 <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.editBtn}><Ionicons name="construct-outline" size={18} color={COLORS.secondary} /></TouchableOpacity>
                 <TouchableOpacity onPress={() => handleExcluirItem(item.id, item.descricao)} style={styles.deleteBtn}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
@@ -262,7 +318,23 @@ export default function ItensAdminScreen() {
         )}
 
         <Modal visible={modalFornecedor} transparent animationType="fade">
-          <View style={styles.modalOverlay}><View style={styles.modalContent}><Text style={styles.modalTitle}>Novo Fornecedor</Text><TextInput style={[styles.input, {marginVertical: 15}]} autoCapitalize="characters" placeholder="Nome" value={novoFornecedor} onChangeText={setNovoFornecedor} /><View style={styles.modalRowBtns}><TouchableOpacity onPress={() => setModalFornecedor(false)} style={styles.modalBtnCancel}><Text style={{color: COLORS.danger, fontWeight: 'bold', fontSize: 12}}>CANCELAR</Text></TouchableOpacity><TouchableOpacity onPress={handleCriarFornecedorRapido} style={styles.modalBtnSave} disabled={salvandoNovoFornecedor}>{salvandoNovoFornecedor ? <ActivityIndicator color="#FFF" /> : <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 12}}>SALVAR</Text>}</TouchableOpacity></View></View></View>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Novo Fornecedor</Text>
+              <TextInput 
+                style={[styles.input, {marginVertical: 15}]} 
+                autoCapitalize="characters" 
+                placeholder="Nome" 
+                placeholderTextColor={COLORS.placeholder}
+                value={novoFornecedor} 
+                onChangeText={setNovoFornecedor} 
+              />
+              <View style={styles.modalRowBtns}>
+                <TouchableOpacity onPress={() => setModalFornecedor(false)} style={styles.modalBtnCancel}><Text style={{color: COLORS.danger, fontWeight: 'bold', fontSize: 12}}>CANCELAR</Text></TouchableOpacity>
+                <TouchableOpacity onPress={handleCriarFornecedorRapido} style={styles.modalBtnSave} disabled={salvandoNovoFornecedor}>{salvandoNovoFornecedor ? <ActivityIndicator color="#FFF" /> : <Text style={{color: '#FFF', fontWeight: 'bold', fontSize: 12}}>SALVAR</Text>}</TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </Modal>
       </View>
     </KeyboardAvoidingView>
