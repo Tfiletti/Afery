@@ -18,7 +18,7 @@ const AZUL_TECH = '#1E3A8A';
 const AZUL_LINHA = '#F1F7FF';
 
 type SortConfig = {
-  key: 'id' | 'fisico' | 'sistema' | 'desvio';
+  key: 'id' | 'fisico' | 'sistema' | 'desvio' | 'acuracidade'; 
   direction: 'asc' | 'desc';
 }
 
@@ -38,12 +38,17 @@ export default function TelaConsultaSaldos() {
 
   const [supervisores, setSupervisores] = useState<string[]>([]);
 
+  // BLINDAGEM E FORMATAÇÃO: Peso com 1 casa e separador de milhar
   const formatarPeso = (valor: number) => {
-    if (valor === undefined || valor === null) return "0,0";
+    if (valor === undefined || valor === null || isNaN(valor)) return "0,0";
     return valor.toFixed(1).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
   };
 
-  const formatarMoeda = (valor: number) => "R$ " + valor.toFixed(2).replace('.', ',');
+  // AJUSTE CIRÚRGICO: Moeda com 2 casas e separador de milhar (ponto)
+  const formatarMoeda = (valor: number) => {
+    if (valor === undefined || valor === null || isNaN(valor)) return "R$ 0,00";
+    return "R$ " + valor.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+  };
 
   const formatarDataLocal = (date: Date) => {
     const d = new Date(date);
@@ -108,12 +113,7 @@ export default function TelaConsultaSaldos() {
 
     try {
         await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
-        
-        await supabase.from('estoque_sistema').delete()
-          .eq('sku_codigo', item.id)
-          .eq('organizacao_id', organizacao_id)
-          .eq('data_referencia', dataIso);
-
+        await supabase.from('estoque_sistema').delete().eq('sku_codigo', item.id).eq('organizacao_id', organizacao_id).eq('data_referencia', dataIso);
         Alert.alert("Sucesso", "Registros zerados com sucesso!");
         buscarDados(); 
     } catch (error: any) {
@@ -154,6 +154,14 @@ export default function TelaConsultaSaldos() {
         const dadosSist = mapaSistema.get(skuLimpo);
         const saldoSistema = dadosSist ? dadosSist.saldo : 0; 
         
+        const desvioAbsoluto = Math.abs(totalFisico - saldoSistema);
+        let acuracidadeItem = 100;
+        if (saldoSistema > 0) {
+          acuracidadeItem = Math.max(0, 100 - (desvioAbsoluto / saldoSistema * 100));
+        } else if (totalFisico > 0) {
+          acuracidadeItem = 0;
+        }
+
         let ultimaModificacao = 0;
         if (itensFisicos.length > 0) {
             ultimaModificacao = Math.max(...itensFisicos.map(c => new Date(c.data_hora).getTime()));
@@ -168,6 +176,7 @@ export default function TelaConsultaSaldos() {
           fisico: totalFisico,
           sistema: saldoSistema, 
           desvio: totalFisico - saldoSistema,
+          acuracidade: acuracidadeItem,
           impacto: (totalFisico - saldoSistema) * (item.preco_unitario || 0),
           temFoto: itensFisicos.some(c => c.foto_url),
           temObs: itensFisicos.some(c => c.observacao && c.observacao.trim() !== ''),
@@ -202,16 +211,39 @@ export default function TelaConsultaSaldos() {
     return resultado;
   }, [lista, busca, sortConfig]);
 
+  const metricasGlobais = useMemo(() => {
+    if (!listaProcessada || listaProcessada.length === 0) {
+        return { acuracidade: 100, impacto: 0, totalItens: 0 };
+    }
+    
+    const somaAbsDesvios = listaProcessada.reduce((acc, curr) => acc + Math.abs(curr.desvio || 0), 0);
+    const somaSistema = listaProcessada.reduce((acc, curr) => acc + (curr.sistema || 0), 0);
+    const impactoTotal = listaProcessada.reduce((acc, curr) => acc + (curr.impacto || 0), 0);
+
+    let accGlobal = 100;
+    if (somaSistema > 0) {
+      accGlobal = Math.max(0, 100 - (somaAbsDesvios / somaSistema * 100));
+    } else if (somaAbsDesvios > 0) {
+      accGlobal = 0;
+    }
+
+    return {
+      acuracidade: accGlobal,
+      impacto: impactoTotal,
+      totalItens: listaProcessada.length
+    };
+  }, [listaProcessada]);
+
   const alternarOrdem = (key: SortConfig['key']) => {
     setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   };
 
   const enviarWhatsapp = () => {
     if (listaProcessada.length === 0) return;
-    let mensagem = `*📊 RELATÓRIO AFERY*\n📅 Data: ${dataSelecionada.toLocaleDateString('pt-BR')}\n👤 Sup: ${supervisorAtivo}\n----------------------------\n\n`;
+    let mensagem = `*📊 RELATÓRIO AFERY*\n📅 Data: ${dataSelecionada.toLocaleDateString('pt-BR')}\n👤 Sup: ${supervisorAtivo}\n🎯 Acuracidade: ${metricasGlobais.acuracidade.toFixed(1)}%\n----------------------------\n\n`;
     listaProcessada.slice(0, 25).forEach(i => {
       let indicador = i.desvio === 0 ? '🟢' : (i.desvio < 0 ? '🔴' : '🟠');
-      mensagem += `${indicador} *${i.id}*\n🏷️ _${i.descricao || 'Sem desc.'}_\nFísico: ${formatarPeso(i.fisico)} | Sist: ${formatarPeso(i.sistema)}\nDesvio: *${formatarPeso(i.desvio)}* | R$: ${formatarMoeda(i.impacto)}\n\n`;
+      mensagem += `${indicador} *${i.id}* (${i.acuracidade.toFixed(0)}%)\n🏷️ _${i.descricao || 'Sem desc.'}_\nFísico: ${formatarPeso(i.fisico)} | Sist: ${formatarPeso(i.sistema)}\nDesvio: *${formatarPeso(i.desvio)}* | R$: ${formatarMoeda(i.impacto)}\n\n`;
     });
     Linking.openURL(`whatsapp://send?text=${encodeURIComponent(mensagem)}`);
   };
@@ -220,14 +252,29 @@ export default function TelaConsultaSaldos() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      {/* HEADER PADRÃO AFERY - AJUSTADO */}
       <View style={[styles.headerBranco, { paddingTop: insets.top + 20 }]}>
         <View style={styles.logoRow}>
           <Image source={require('../../assets/images/icon.png')} style={styles.tinyLogo} />
           <View>
             <Text style={styles.titlePrincipal}>AFERY</Text>
-            <Text style={styles.subtitle}>Painel de Inventário</Text>
+            <Text style={styles.subtitle}>Relatórios de Acuracidade</Text>
           </View>
+        </View>
+
+        <View style={styles.dashboardAcc}>
+            <View style={styles.accItem}>
+                <Text style={styles.accLabel}>ACURACIDADE</Text>
+                <Text style={[styles.accValue, { color: metricasGlobais.acuracidade > 98 ? '#10B981' : metricasGlobais.acuracidade > 90 ? '#F59E0B' : '#EF4444' }]}>
+                    {(metricasGlobais.acuracidade || 0).toFixed(1)}%
+                </Text>
+            </View>
+            <View style={styles.accDivisor} />
+            <View style={styles.accItem}>
+                <Text style={styles.accLabel}>IMPACTO FINANCEIRO</Text>
+                <Text style={[styles.accValue, { color: (metricasGlobais.impacto || 0) < 0 ? '#EF4444' : '#10B981' }]}>
+                    {formatarMoeda(metricasGlobais.impacto)}
+                </Text>
+            </View>
         </View>
         
         <View style={styles.searchBar}>
@@ -261,7 +308,7 @@ export default function TelaConsultaSaldos() {
 
       <View style={styles.tableHeader}>
         <TouchableOpacity style={[styles.headBtn, { flex: COL_ITEM }]} onPress={() => alternarOrdem('id')}>
-          <Text style={styles.txtHead}>Item / Aud.</Text>
+          <Text style={styles.txtHead}>Item / Acc.</Text>
           <Ionicons name={sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
         </TouchableOpacity>
 
@@ -281,7 +328,7 @@ export default function TelaConsultaSaldos() {
         </TouchableOpacity>
       </View>
 
-      {carregando ? <ActivityIndicator size="large" color={AZUL_TECH} style={{ marginTop: 50 }} /> : (
+      {!carregando && (
         <FlatList
           data={listaProcessada} 
           keyExtractor={item => item.internalId.toString()}
@@ -292,7 +339,12 @@ export default function TelaConsultaSaldos() {
               onPress={() => abrirAuditoria(item)}
             >
               <View style={{ flex: COL_ITEM }}>
-                <Text style={styles.itemCode}>{item.id}</Text>
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+                    <Text style={styles.itemCode}>{item.id}</Text>
+                    <View style={[styles.miniBadgeAcc, {backgroundColor: (item.acuracidade || 0) > 95 ? '#D1FAE5' : '#FEE2E2'}]}>
+                        <Text style={[styles.miniBadgeText, {color: (item.acuracidade || 0) > 95 ? '#065F46' : '#991B1B'}]}>{(item.acuracidade || 0).toFixed(0)}%</Text>
+                    </View>
+                </View>
                 <Text style={styles.itemDesc} numberOfLines={2}>{item.descricao || 'S/ DESCRIÇÃO'}</Text>
               </View>
               
@@ -323,6 +375,7 @@ export default function TelaConsultaSaldos() {
           )}
         />
       )}
+      {carregando && <ActivityIndicator size="large" color={AZUL_TECH} style={{ marginTop: 50 }} />}
     </View>
   );
 }
@@ -390,5 +443,30 @@ const styles = StyleSheet.create({
   valDesvio: { fontSize: 15, fontWeight: '900' }, 
   valGrana: { fontSize: 11, fontWeight: 'bold', marginTop: 2 }, 
   containerAlerta: { flexDirection: 'row', backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A' },
-  btnTrash: { padding: 6, marginLeft: 4 }
+  btnTrash: { padding: 6, marginLeft: 4 },
+
+  dashboardAcc: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 5,
+    justifyContent: 'space-around',
+    alignItems: 'center'
+  },
+  accItem: { alignItems: 'center' },
+  accLabel: { fontSize: 9, fontWeight: 'bold', color: '#94A3B8', marginBottom: 2 },
+  accValue: { fontSize: 16, fontWeight: '900' },
+  accDivisor: { width: 1, height: 30, backgroundColor: '#E2E8F0' },
+  miniBadgeAcc: {
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 5,
+  },
+  miniBadgeText: {
+      fontSize: 10,
+      fontWeight: 'bold'
+  }
 });
