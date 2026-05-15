@@ -38,13 +38,11 @@ export default function TelaConsultaSaldos() {
 
   const [supervisores, setSupervisores] = useState<string[]>([]);
 
-  // BLINDAGEM E FORMATAÇÃO: Peso com 1 casa e separador de milhar
   const formatarPeso = (valor: number) => {
     if (valor === undefined || valor === null || isNaN(valor)) return "0,0";
     return valor.toFixed(1).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
   };
 
-  // AJUSTE CIRÚRGICO: Moeda com 2 casas e separador de milhar (ponto)
   const formatarMoeda = (valor: number) => {
     if (valor === undefined || valor === null || isNaN(valor)) return "R$ 0,00";
     return "R$ " + valor.toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
@@ -58,13 +56,12 @@ export default function TelaConsultaSaldos() {
     return `${ano}-${mes}-${dia}`;
   };
 
+  // AJUSTE CIRÚRGICO: Define o dia exato (00:00:00 a 23:59:59) no fuso de Brasília (-03:00)
   const obterFiltroTurno = (dataBase: Date) => {
-    const inicio = new Date(dataBase);
-    inicio.setHours(5, 0, 0, 0);
-    const fim = new Date(inicio);
-    fim.setDate(inicio.getDate() + 1);
-    fim.setHours(5, 0, 0, 0);
-    return { inicio: inicio.toISOString(), fim: fim.toISOString() };
+    const dataIso = formatarDataLocal(dataBase);
+    const inicio = `${dataIso}T00:00:00-03:00`;
+    const fim = `${dataIso}T23:59:59-03:00`;
+    return { inicio, fim };
   };
 
   const buscarSupervisores = async () => {
@@ -93,7 +90,7 @@ export default function TelaConsultaSaldos() {
   const confirmarExclusao = (item: any) => {
     if (!organizacao_id) return;
     const cincoHorasEmMs = 5 * 60 * 60 * 1000;
-    const tempoDecorrido = Date.now() - item.ultimaModificacao;
+    const tempoDecorrido = Date.now() - (item.ultimaModificacao || 0);
 
     if (tempoDecorrido > cincoHorasEmMs && role !== 'ADMIN') {
         Alert.alert("⏳ Tempo Expirado", "O prazo de 5h expirou. Somente o Administrador pode apagar este registro.");
@@ -112,7 +109,7 @@ export default function TelaConsultaSaldos() {
     const dataIso = formatarDataLocal(dataSelecionada);
 
     try {
-        await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lt('data_hora', fim);
+        await supabase.from('contagens').delete().eq('item_id', item.internalId).eq('organizacao_id', organizacao_id).gte('data_hora', inicio).lte('data_hora', fim);
         await supabase.from('estoque_sistema').delete().eq('sku_codigo', item.id).eq('organizacao_id', organizacao_id).eq('data_referencia', dataIso);
         Alert.alert("Sucesso", "Registros zerados com sucesso!");
         buscarDados(); 
@@ -129,17 +126,29 @@ export default function TelaConsultaSaldos() {
     const dataIso = formatarDataLocal(dataSelecionada);
 
     try {
+      // 1. Busca os Itens
       let query = supabase.from('itens').select('id, sku_codigo, descricao, preco_unitario, responsavel').eq('organizacao_id', organizacao_id);
       if (supervisorAtivo !== 'Todos') query = query.eq('responsavel', supervisorAtivo);
-      const { data: itens } = await query;
+      const { data: itens, error: errItens } = await query;
+      if (errItens) throw errItens;
 
-      const { data: contagens } = await supabase.from('contagens').select('item_id, peso_liquido_calculado, data_hora, foto_url, observacao').eq('organizacao_id', organizacao_id).gte('data_hora', fisInicio).lt('data_hora', fisFim);
+      // 2. Busca Contagens com o filtro de fuso corrigido
+      const { data: contagens, error: errCont } = await supabase
+        .from('contagens')
+        .select('item_id, peso_liquido_calculado, data_hora, foto_url, observacao')
+        .eq('organizacao_id', organizacao_id)
+        .gte('data_hora', fisInicio)
+        .lte('data_hora', fisFim);
+      if (errCont) throw errCont;
       
-      const { data: estoqueSistema } = await supabase.from('estoque_sistema')
+      // 3. Busca Saldo do Sistema
+      const { data: estoqueSistema, error: errSist } = await supabase
+        .from('estoque_sistema')
         .select('sku_codigo, saldo_sistema, data_atualizacao')
         .eq('organizacao_id', organizacao_id)
         .eq('data_referencia', dataIso) 
         .order('data_atualizacao', { ascending: false });
+      if (errSist) throw errSist;
 
       const mapaSistema = new Map();
       estoqueSistema?.forEach(e => {
@@ -184,14 +193,17 @@ export default function TelaConsultaSaldos() {
         };
       }); 
       setLista(consolidado);
-    } catch (err: any) { Alert.alert("Erro", err.message); }
-    finally { setCarregando(false); }
+    } catch (err: any) { 
+      Alert.alert("Erro de Consulta", err.message); 
+    } finally { 
+      setCarregando(false); 
+    }
   };
 
   useFocusEffect(useCallback(() => { 
     buscarSupervisores();
     buscarDados(); 
-  }, [supervisorAtivo, dataSelecionada]));
+  }, [supervisorAtivo, dataSelecionada, organizacao_id]));
 
   const listaProcessada = useMemo(() => {
     let resultado = [...lista];
@@ -215,7 +227,6 @@ export default function TelaConsultaSaldos() {
     if (!listaProcessada || listaProcessada.length === 0) {
         return { acuracidade: 100, impacto: 0, totalItens: 0 };
     }
-    
     const somaAbsDesvios = listaProcessada.reduce((acc, curr) => acc + Math.abs(curr.desvio || 0), 0);
     const somaSistema = listaProcessada.reduce((acc, curr) => acc + (curr.sistema || 0), 0);
     const impactoTotal = listaProcessada.reduce((acc, curr) => acc + (curr.impacto || 0), 0);
@@ -227,11 +238,7 @@ export default function TelaConsultaSaldos() {
       accGlobal = 0;
     }
 
-    return {
-      acuracidade: accGlobal,
-      impacto: impactoTotal,
-      totalItens: listaProcessada.length
-    };
+    return { acuracidade: accGlobal, impacto: impactoTotal, totalItens: listaProcessada.length };
   }, [listaProcessada]);
 
   const alternarOrdem = (key: SortConfig['key']) => {
@@ -251,7 +258,6 @@ export default function TelaConsultaSaldos() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
       <View style={[styles.headerBranco, { paddingTop: insets.top + 20 }]}>
         <View style={styles.logoRow}>
           <Image source={require('../../assets/images/icon.png')} style={styles.tinyLogo} />
@@ -311,17 +317,14 @@ export default function TelaConsultaSaldos() {
           <Text style={styles.txtHead}>Item / Acc.</Text>
           <Ionicons name={sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
         </TouchableOpacity>
-
         <TouchableOpacity style={[styles.headBtn, { flex: COL_FISICO, justifyContent: 'center' }]} onPress={() => alternarOrdem('fisico')}>
           <Text style={styles.txtHead}>Físico</Text>
           <Ionicons name={sortConfig.key === 'fisico' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
         </TouchableOpacity>
-
         <TouchableOpacity style={[styles.headBtn, { flex: COL_SISTEMA, justifyContent: 'center' }]} onPress={() => alternarOrdem('sistema')}>
           <Text style={styles.txtHead}>Sistema</Text>
           <Ionicons name={sortConfig.key === 'sistema' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
         </TouchableOpacity>
-
         <TouchableOpacity style={[styles.headBtn, { flex: COL_DESVIO, justifyContent: 'flex-end' }]} onPress={() => alternarOrdem('desvio')}>
           <Text style={styles.txtHead}>Desvio</Text>
           <Ionicons name={sortConfig.key === 'desvio' ? (sortConfig.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'swap-vertical'} size={12} color="#CBD5E1" />
@@ -334,10 +337,7 @@ export default function TelaConsultaSaldos() {
           keyExtractor={item => item.internalId.toString()}
           contentContainerStyle={{ paddingBottom: 100 }}
           renderItem={({ item, index }) => (
-            <TouchableOpacity 
-              style={[styles.row, { backgroundColor: index % 2 === 0 ? '#FFFFFF' : AZUL_LINHA }]} 
-              onPress={() => abrirAuditoria(item)}
-            >
+            <TouchableOpacity style={[styles.row, { backgroundColor: index % 2 === 0 ? '#FFFFFF' : AZUL_LINHA }]} onPress={() => abrirAuditoria(item)}>
               <View style={{ flex: COL_ITEM }}>
                 <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
                     <Text style={styles.itemCode}>{item.id}</Text>
@@ -347,16 +347,13 @@ export default function TelaConsultaSaldos() {
                 </View>
                 <Text style={styles.itemDesc} numberOfLines={2}>{item.descricao || 'S/ DESCRIÇÃO'}</Text>
               </View>
-              
               <Text style={[styles.valText, { flex: COL_FISICO, textAlign: 'center' }]}>{formatarPeso(item.fisico)}</Text>
               <Text style={[styles.valText, { flex: COL_SISTEMA, textAlign: 'center', color: '#64748B' }]}>{formatarPeso(item.sistema)}</Text>
-              
               <View style={{ flex: COL_DESVIO, alignItems: 'flex-end' }}>
                 <Text style={[styles.valDesvio, { color: item.desvio < 0 ? '#EF4444' : item.desvio > 0 ? '#F59E0B' : '#10B981' }]}>
                   {item.desvio > 0 ? `+${formatarPeso(item.desvio)}` : formatarPeso(item.desvio)}
                 </Text>
                 <Text style={[styles.valGrana, { color: item.impacto < 0 ? '#EF4444' : '#64748B' }]}>{formatarMoeda(item.impacto)}</Text>
-                
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                     {(item.temFoto || item.temObs) && (
                       <View style={styles.containerAlerta}>
@@ -382,46 +379,12 @@ export default function TelaConsultaSaldos() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  headerBranco: { 
-    backgroundColor: '#FFFFFF', 
-    paddingBottom: 20, 
-    paddingHorizontal: 20, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#E2E8F0', 
-    elevation: 4 
-  },
+  headerBranco: { backgroundColor: '#FFFFFF', paddingBottom: 20, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 4 },
   logoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  tinyLogo: { 
-    width: 48, 
-    height: 48, 
-    marginRight: 12, 
-    borderRadius: 12 
-  },
-  titlePrincipal: { 
-    fontSize: 24, 
-    fontWeight: '900', 
-    color: AZUL_TECH,
-    letterSpacing: -0.5,
-    lineHeight: 28 
-  },
-  subtitle: { 
-    fontSize: 11, 
-    color: '#64748B', 
-    fontWeight: '800', 
-    textTransform: 'uppercase',
-    marginTop: -2
-  },
-  searchBar: { 
-    backgroundColor: '#F1F5F9', 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 12, 
-    paddingHorizontal: 12, 
-    height: 45, 
-    marginVertical: 10, 
-    borderWidth: 1, 
-    borderColor: '#E2E8F0' 
-  },
+  tinyLogo: { width: 48, height: 48, marginRight: 12, borderRadius: 12 },
+  titlePrincipal: { fontSize: 24, fontWeight: '900', color: AZUL_TECH, letterSpacing: -0.5, lineHeight: 28 },
+  subtitle: { fontSize: 11, color: '#64748B', fontWeight: '800', textTransform: 'uppercase', marginTop: -2 },
+  searchBar: { backgroundColor: '#F1F5F9', flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, height: 45, marginVertical: 10, borderWidth: 1, borderColor: '#E2E8F0' },
   inputBusca: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1E293B' },
   barraFiltro: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
   dataContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
@@ -444,29 +407,11 @@ const styles = StyleSheet.create({
   valGrana: { fontSize: 11, fontWeight: 'bold', marginTop: 2 }, 
   containerAlerta: { flexDirection: 'row', backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A' },
   btnTrash: { padding: 6, marginLeft: 4 },
-
-  dashboardAcc: {
-    flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 5,
-    justifyContent: 'space-around',
-    alignItems: 'center'
-  },
+  dashboardAcc: { flexDirection: 'row', backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 5, justifyContent: 'space-around', alignItems: 'center' },
   accItem: { alignItems: 'center' },
   accLabel: { fontSize: 9, fontWeight: 'bold', color: '#94A3B8', marginBottom: 2 },
   accValue: { fontSize: 16, fontWeight: '900' },
   accDivisor: { width: 1, height: 30, backgroundColor: '#E2E8F0' },
-  miniBadgeAcc: {
-      paddingHorizontal: 5,
-      paddingVertical: 1,
-      borderRadius: 5,
-  },
-  miniBadgeText: {
-      fontSize: 10,
-      fontWeight: 'bold'
-  }
+  miniBadgeAcc: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5 },
+  miniBadgeText: { fontSize: 10, fontWeight: 'bold' }
 });

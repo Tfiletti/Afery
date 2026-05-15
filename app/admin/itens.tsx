@@ -99,9 +99,13 @@ export default function ItensAdminScreen() {
 
     try {
       let itemIdSalvo = editandoId;
-      if (editandoId) { await supabase.from('itens').update(dados).eq('id', editandoId); }
+      if (editandoId) { 
+        const { error } = await supabase.from('itens').update(dados).eq('id', editandoId); 
+        if (error) throw error;
+      }
       else { 
-        const { data } = await supabase.from('itens').insert(dados).select('id').single();
+        const { data, error } = await supabase.from('itens').insert(dados).select('id').single();
+        if (error) throw error;
         itemIdSalvo = data.id;
       }
       carregarDadosBase();
@@ -111,16 +115,26 @@ export default function ItensAdminScreen() {
   };
 
   const iniciarEdicao = (item: any) => {
-    setEditandoId(item.id); setCodigoErp(item.sku_codigo || ''); setDescricao(item.descricao || '');
-    setFamiliaId(item.familia_id || ''); setUnidade(item.unidade_medida || 'UN');
+    setEditandoId(item.id); 
+    setCodigoErp(item.sku_codigo || ''); 
+    setDescricao(item.descricao || '');
+    setFamiliaId(item.familia_id || ''); 
+    setUnidade(item.unidade_medida || 'UN');
     setSupervisor(item.responsavel || ''); 
     
-    // AJUSTE CIRÚRGICO: Se o preço for 0, deixa vazio para mostrar o placeholder
     const precoTexto = item.preco_unitario && item.preco_unitario !== 0 
       ? item.preco_unitario.toString().replace('.', ',') 
       : '';
     setPrecoUnitario(precoTexto);
     
+    // Limpa campos de nova regra para evitar lixo de itens anteriores
+    setFornecedorId(''); 
+    setFatorPalete('0'); 
+    setFatorCaixa('0');
+    setPesoUnitarioProd('0'); 
+    setPesoSaco('0'); 
+    setPesoCaixaUnit('0');
+
     carregarFatoresDoItem(item.id);
   };
 
@@ -134,21 +148,28 @@ export default function ItensAdminScreen() {
     if (!editandoId || !fornecedorId) return Alert.alert('Atenção', 'Selecione o fornecedor.');
     setSalvandoFator(true);
     try {
-      await supabase.from('item_fornecedor').upsert({
+      const { error } = await supabase.from('item_fornecedor').upsert({
         organizacao_id, 
         item_id: editandoId, 
         fornecedor_id: fornecedorId,
         fator_palete: parseFloat(String(fatorPalete).replace(',', '.')) || 0,
         fator_caixa: parseFloat(String(fatorCaixa).replace(',', '.')) || 0,
-        weight_unitario_produto: parseFloat(String(pesoUnitarioProd).replace(',', '.')) || 0,
+        // AJUSTE: Mudamos de weight_unitario_produto para peso_unitario_produto para casar com o banco
+        peso_unitario_produto: parseFloat(String(pesoUnitarioProd).replace(',', '.')) || 0,
         peso_saco_unitario: parseFloat(String(pesoSaco).replace(',', '.')) || 0,
         peso_caixa_unitaria: parseFloat(String(pesoCaixaUnit).replace(',', '.')) || 0,
       }, { onConflict: 'item_id, fornecedor_id' });
       
+      if (error) throw error;
+
+      Alert.alert("Sucesso", "Regra vinculada!");
       setFornecedorId(''); setFatorPalete('0'); setFatorCaixa('0');
       setPesoUnitarioProd('0'); setPesoSaco('0'); setPesoCaixaUnit('0');
       carregarFatoresDoItem(editandoId); 
-    } catch (e: any) { Alert.alert('Erro', 'Falha ao salvar regra.'); } finally { setSalvandoFator(false); }
+    } catch (e: any) { 
+      console.error(e);
+      Alert.alert('Erro', `Falha ao salvar regra: ${e.message}`); 
+    } finally { setSalvandoFator(false); }
   };
 
   const handleExcluirFator = (fId: string) => {
@@ -168,9 +189,17 @@ export default function ItensAdminScreen() {
     if (!novoFornecedor.trim()) return;
     setSalvandoNovoFornecedor(true);
     try {
-      const { data } = await supabase.from('fornecedores').insert({ organizacao_id, nome: novoFornecedor.trim().toUpperCase() }).select('id, nome').single();
+      const { data, error } = await supabase.from('fornecedores').insert({ 
+        organizacao_id, 
+        nome: novoFornecedor.trim().toUpperCase() 
+      }).select('id, nome').single();
+      
+      if (error) throw error;
+
       setFornecedores([...fornecedores, data].sort((a, b) => a.nome.localeCompare(b.nome)));
-      setFornecedorId(data.id); setModalFornecedor(false); setNovoFornecedor('');
+      setFornecedorId(data.id); 
+      setModalFornecedor(false); 
+      setNovoFornecedor('');
     } catch (e: any) { Alert.alert('Erro', e.message); } finally { setSalvandoNovoFornecedor(false); }
   };
 
@@ -216,7 +245,7 @@ export default function ItensAdminScreen() {
               <View style={styles.row}>
                 <TextInput 
                   style={[styles.input, { flex: 2, marginRight: 8 }]} 
-                  placeholder="Responsável" // AJUSTE CIRÚRGICO: Placeholder alterado
+                  placeholder="Responsável" 
                   placeholderTextColor={COLORS.placeholder}
                   value={supervisor} 
                   onChangeText={setSupervisor} 
@@ -238,7 +267,10 @@ export default function ItensAdminScreen() {
               <Text style={[styles.cardTitle, { color: COLORS.success, marginBottom: 5 }]}>✅ Regras Vinculadas</Text>
               {fatoresDoItem.map((f) => (
                 <View key={f.id} style={styles.fatorMiniCard}>
-                  <View style={{ flex: 1 }}><Text style={{ fontWeight: 'bold', color: COLORS.text, fontSize: 13 }}>{f.fornecedores?.nome}</Text><Text style={{ fontSize: 11, color: '#64748B' }}>P: {f.fator_palete} | C: {f.fator_caixa} | {f.peso_unitario_produto}kg</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: 'bold', color: COLORS.text, fontSize: 13 }}>{f.fornecedores?.nome}</Text>
+                    <Text style={{ fontSize: 11, color: '#64748B' }}>P: {f.fator_palete} | C: {f.fator_caixa} | {f.peso_unitario_produto}kg</Text>
+                  </View>
                   <TouchableOpacity onPress={() => handleExcluirFator(f.id)}><Ionicons name="trash" size={18} color={COLORS.danger} /></TouchableOpacity>
                 </View>
               ))}

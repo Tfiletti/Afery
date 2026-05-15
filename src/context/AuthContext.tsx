@@ -1,12 +1,16 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { Alert } from 'react-native'; // Importação necessária para o aviso
+import { Alert } from 'react-native'; 
 import { supabase } from '../supabase'; 
 
 type AuthContextData = {
   session: Session | null;
   user: User | null;
+  userName: string | null; 
   organizacao_id: string | null;
+  organizacao_nome: string | null; 
+  organizacao_slug: string | null; 
+  organizacao_codigo: string | null; // ADICIONADO: Para o código de registro (9WQNRU)
   role: string | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -17,27 +21,37 @@ const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [userName, setUserName] = useState<string | null>(null); 
   const [organizacao_id, setOrganizacaoId] = useState<string | null>(null);
+  const [organizacao_nome, setOrganizacaoNome] = useState<string | null>(null); 
+  const [organizacao_slug, setOrganizacaoSlug] = useState<string | null>(null); 
+  const [organizacao_codigo, setOrganizacaoCodigo] = useState<string | null>(null); // ADICIONADO
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchPerfil(session.user.id);
+      
+      if (session?.user) {
+        await fetchPerfil(session.user.id);
+      }
       setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
+        setLoading(true);
         await fetchPerfil(session.user.id);
       } else {
-        setOrganizacaoId(null);
-        setRole(null);
+        limparEstados();
       }
       setLoading(false);
     });
@@ -47,28 +61,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const limparEstados = () => {
+    setOrganizacaoId(null);
+    setOrganizacaoNome(null);
+    setOrganizacaoSlug(null);
+    setOrganizacaoCodigo(null); // ADICIONADO
+    setUserName(null);
+    setRole(null);
+  };
+
   const fetchPerfil = async (userId: string) => {
     try {
-      // 1. Buscamos agora também o campo 'status'
+      // AJUSTE CIRÚRGICO: Incluído 'codigo_acesso' na busca relacional
       const { data, error } = await supabase
         .from('perfis')
-        .select('organizacao_id, role, status')
+        .select(`
+          nome, 
+          role, 
+          status, 
+          organizacao_id,
+          organizacoes (nome, slug, codigo_acesso)
+        `)
         .eq('id', userId)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        // 2. A TRAVA DE SEGURANÇA: Verifica se o status não é 'ativo'
         if (data.status !== 'ativo') {
-          await supabase.auth.signOut(); // Desloga o usuário do Supabase
-          
-          // Limpa os estados locais
-          setOrganizacaoId(null);
-          setRole(null);
-          setSession(null);
-          setUser(null);
-
+          await signOut();
           Alert.alert(
             "Acesso Pendente",
             "Sua conta ainda aguarda liberação do administrador da unidade."
@@ -76,23 +97,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // 3. Se estiver ativo, estabelece o vínculo
+        setUserName(data.nome); 
         setOrganizacaoId(data.organizacao_id);
         setRole(data.role);
+        
+        const org: any = data.organizacoes;
+        if (org) {
+          setOrganizacaoNome(org.nome);
+          setOrganizacaoSlug(org.slug);
+          setOrganizacaoCodigo(org.codigo_acesso); // AGORA MAPEADO CORRETAMENTE
+        }
       }
-    } catch (error) {
-      console.error('Erro ao buscar perfil SaaS:', error);
-      // Em caso de erro crítico na busca do perfil, deslogamos por precaução
-      await supabase.auth.signOut();
+    } catch (error: any) {
+      console.error('Erro ao buscar perfil SaaS:', error.message);
     }
   };
 
   const signOut = async () => {
+    limparEstados();
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, organizacao_id, role, loading, signOut }}>
+    <AuthContext.Provider value={{ 
+      session, 
+      user, 
+      userName, 
+      organizacao_id, 
+      organizacao_nome, 
+      organizacao_slug, 
+      organizacao_codigo, // ADICIONADO AO PROVIDER
+      role, 
+      loading, 
+      signOut 
+    }}>
       {children}
     </AuthContext.Provider>
   );
