@@ -121,7 +121,7 @@ export default function ItensAdminScreen() {
 
     const dados = {
       organizacao_id, 
-      sku_codigo: codigoErp.trim(), 
+      sku_codigo: codigoErp.trim().toUpperCase(), // Alinhado com as travas do banco
       descricao: descricao.trim(),
       familia_id: familiaId === '' ? null : familiaId, 
       unidade_medida: unidade,
@@ -143,7 +143,7 @@ export default function ItensAdminScreen() {
       }
       carregarDadosBase();
       if (!editandoId && itemIdSalvo) iniciarEdicao({ id: itemIdSalvo, ...dados });
-      else Alert.alert("Sucesso", "Dados updated!");
+      else Alert.alert("Sucesso", "Dados atualizados!");
     } catch (e: any) { Alert.alert('Erro', e.message); } finally { setSalvando(false); }
   };
 
@@ -222,11 +222,10 @@ export default function ItensAdminScreen() {
     
     setSalvandoNovoFornecedor(true);
     
-    // VALIDANTE DE DUPLICIDADE (MÁGICA LOGÍSTICA)
     const jaExiste = fornecedores.find(f => f.nome === nomeLimpo);
     if (jaExiste) {
       Alert.alert('Atenção', 'Este fornecedor já está cadastrado no sistema.');
-      setFornecedorId(jaExiste.id); // Já deixa o cara selecionado no formulário
+      setFornecedorId(jaExiste.id); 
       setModalFornecedor(false);
       setNovoFornecedor('');
       setSalvandoNovoFornecedor(false);
