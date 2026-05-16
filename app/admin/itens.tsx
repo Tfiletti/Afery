@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker'; 
 import { supabase } from '../../src/supabase'; 
 import { useAuth } from '../../src/context/AuthContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
@@ -22,6 +21,40 @@ const COLORS = {
   placeholder: '#64748B', 
   cardSavedBg: '#F0FDF4', 
   cardAddBg: '#F0F9FF',   
+};
+
+// COMPONENTE JAVASCRIPT CORRIGIDO E AJUSTADO VISUALMENTE
+const MenuJS = ({ value, onValueChange, placeholder, options }: any) => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const selecionado = options.find((o: any) => o.value === value);
+
+  return (
+    <>
+      <TouchableOpacity onPress={() => setModalVisible(true)} style={{ height: 40, justifyContent: 'center', paddingHorizontal: 12 }}>
+        <Text style={{ color: selecionado ? COLORS.text : COLORS.placeholder, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
+          {selecionado ? selecionado.label : placeholder}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={COLORS.placeholder} style={{ position: 'absolute', right: 10 }} />
+      </TouchableOpacity>
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
+          <View style={[styles.modalContent, { padding: 0, maxHeight: '60%', width: '75%', overflow: 'hidden' }]}>
+            <Text style={{ fontSize: 13, fontWeight: '900', color: COLORS.secondary, textAlign: 'center', padding: 15, backgroundColor: COLORS.cardAddBg, borderTopLeftRadius: 12, borderTopRightRadius: 12, textTransform: 'uppercase' }}>
+              {placeholder}
+            </Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {options.map((opt: any) => (
+                <TouchableOpacity key={opt.value} style={{ padding: 15, borderBottomWidth: 1, borderColor: COLORS.border }} onPress={() => { onValueChange(opt.value); setModalVisible(false); }}>
+                  <Text style={{ fontSize: 15, color: COLORS.text, textAlign: 'center', fontWeight: selecionado?.value === opt.value ? 'bold' : 'normal' }}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
 };
 
 export default function ItensAdminScreen() {
@@ -110,7 +143,7 @@ export default function ItensAdminScreen() {
       }
       carregarDadosBase();
       if (!editandoId && itemIdSalvo) iniciarEdicao({ id: itemIdSalvo, ...dados });
-      else Alert.alert("Sucesso", "Dados atualizados!");
+      else Alert.alert("Sucesso", "Dados updated!");
     } catch (e: any) { Alert.alert('Erro', e.message); } finally { setSalvando(false); }
   };
 
@@ -127,7 +160,6 @@ export default function ItensAdminScreen() {
       : '';
     setPrecoUnitario(precoTexto);
     
-    // Limpa campos de nova regra para evitar lixo de itens anteriores
     setFornecedorId(''); 
     setFatorPalete('0'); 
     setFatorCaixa('0');
@@ -154,7 +186,6 @@ export default function ItensAdminScreen() {
         fornecedor_id: fornecedorId,
         fator_palete: parseFloat(String(fatorPalete).replace(',', '.')) || 0,
         fator_caixa: parseFloat(String(fatorCaixa).replace(',', '.')) || 0,
-        // AJUSTE: Mudamos de weight_unitario_produto para peso_unitario_produto para casar com o banco
         peso_unitario_produto: parseFloat(String(pesoUnitarioProd).replace(',', '.')) || 0,
         peso_saco_unitario: parseFloat(String(pesoSaco).replace(',', '.')) || 0,
         peso_caixa_unitaria: parseFloat(String(pesoCaixaUnit).replace(',', '.')) || 0,
@@ -186,12 +217,26 @@ export default function ItensAdminScreen() {
   };
 
   const handleCriarFornecedorRapido = async () => {
-    if (!novoFornecedor.trim()) return;
+    const nomeLimpo = novoFornecedor.trim().toUpperCase();
+    if (!nomeLimpo) return;
+    
     setSalvandoNovoFornecedor(true);
+    
+    // VALIDANTE DE DUPLICIDADE (MÁGICA LOGÍSTICA)
+    const jaExiste = fornecedores.find(f => f.nome === nomeLimpo);
+    if (jaExiste) {
+      Alert.alert('Atenção', 'Este fornecedor já está cadastrado no sistema.');
+      setFornecedorId(jaExiste.id); // Já deixa o cara selecionado no formulário
+      setModalFornecedor(false);
+      setNovoFornecedor('');
+      setSalvandoNovoFornecedor(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase.from('fornecedores').insert({ 
         organizacao_id, 
-        nome: novoFornecedor.trim().toUpperCase() 
+        nome: nomeLimpo 
       }).select('id, nome').single();
       
       if (error) throw error;
@@ -233,7 +278,14 @@ export default function ItensAdminScreen() {
                   value={codigoErp} 
                   onChangeText={setCodigoErp} 
                 />
-                <View style={[styles.pickerWrap, { flex: 1 }]}><Picker selectedValue={unidade} onValueChange={setUnidade} style={{marginTop: -4}}><Picker.Item label="UN" value="UN" /><Picker.Item label="KG" value="KG" /></Picker></View>
+                <View style={[styles.pickerWrap, { flex: 1 }]}>
+                  <MenuJS 
+                    value={unidade} 
+                    onValueChange={setUnidade} 
+                    placeholder="UN" 
+                    options={[{label: 'UN', value: 'UN'}, {label: 'KG', value: 'KG'}]} 
+                  />
+                </View>
               </View>
               <TextInput 
                 style={[styles.input, { marginBottom: 8 }]} 
@@ -259,7 +311,14 @@ export default function ItensAdminScreen() {
                   onChangeText={setPrecoUnitario} 
                 />
               </View>
-              <View style={styles.pickerWrapFull}><Picker selectedValue={familiaId} onValueChange={setFamiliaId} style={{marginTop: -4}}><Picker.Item label="Família..." value="" />{familias.map(f => <Picker.Item key={f.id} label={f.nome} value={f.id} />)}</Picker></View>
+              <View style={styles.pickerWrapFull}>
+                <MenuJS 
+                  value={familiaId} 
+                  onValueChange={setFamiliaId} 
+                  placeholder="Família..." 
+                  options={familias.map(f => ({ label: f.nome, value: f.id }))} 
+                />
+              </View>
               <TouchableOpacity style={styles.saveButton} onPress={handleSalvarItem} disabled={salvando}>{salvando ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>ATUALIZAR DADOS</Text>}</TouchableOpacity>
             </View>
 
@@ -280,7 +339,14 @@ export default function ItensAdminScreen() {
             <View style={[styles.card, styles.cardAddBg]}>
               <Text style={styles.cardTitle}>➕ Nova Regra de Peso</Text>
               <View style={styles.row}>
-                <View style={[styles.pickerWrapFull, { flex: 1, marginBottom: 0, marginRight: 8 }]}><Picker selectedValue={fornecedorId} onValueChange={setFornecedorId} style={{marginTop: -4}}><Picker.Item label="Fornecedor..." value="" />{fornecedores.map(f => <Picker.Item key={f.id} label={f.nome} value={f.id} />)}</Picker></View>
+                <View style={[styles.pickerWrapFull, { flex: 1, marginBottom: 0, marginRight: 8 }]}>
+                  <MenuJS 
+                    value={fornecedorId} 
+                    onValueChange={setFornecedorId} 
+                    placeholder="Fornecedor..." 
+                    options={fornecedores.map(f => ({ label: f.nome, value: f.id }))} 
+                  />
+                </View>
                 <TouchableOpacity style={styles.btnNovoFornecedor} onPress={() => setModalFornecedor(true)}><Ionicons name="add" size={22} color="#FFF" /></TouchableOpacity>
               </View>
               <View style={[styles.row, { marginTop: 8 }]}>
@@ -312,7 +378,14 @@ export default function ItensAdminScreen() {
                       value={codigoErp} 
                       onChangeText={setCodigoErp} 
                     />
-                    <View style={[styles.pickerWrap, { flex: 1 }]}><Picker selectedValue={unidade} onValueChange={setUnidade} style={{marginTop: -4}}><Picker.Item label="UN" value="UN" /><Picker.Item label="KG" value="KG" /></Picker></View>
+                    <View style={[styles.pickerWrap, { flex: 1 }]}>
+                      <MenuJS 
+                        value={unidade} 
+                        onValueChange={setUnidade} 
+                        placeholder="UN" 
+                        options={[{label: 'UN', value: 'UN'}, {label: 'KG', value: 'KG'}]} 
+                      />
+                    </View>
                   </View>
                   <TextInput 
                     style={[styles.input, { marginBottom: 8 }]} 
@@ -416,7 +489,7 @@ const styles = StyleSheet.create({
   cardAddBg: { backgroundColor: COLORS.cardAddBg, borderColor: '#BAE6FD' },
   
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '80%', backgroundColor: '#FFF', borderRadius: 12, padding: 20 },
+  modalContent: { width: '85%', backgroundColor: '#FFF', borderRadius: 12, padding: 20 },
   modalRowBtns: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   modalBtnSave: { backgroundColor: COLORS.success, padding: 12, borderRadius: 8, flex: 1, marginLeft: 6, alignItems: 'center' },
   modalBtnCancel: { padding: 12, flex: 1, marginRight: 6, alignItems: 'center' },
