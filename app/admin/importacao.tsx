@@ -171,13 +171,9 @@ export default function HubAdministrativo() {
     return parseFloat(s) || 0;
   };
 
-  // --- AJUSTE CIRÚRGICO: ABA SALDO_SISTEMA COM DESCRIÇÃO ---
   const baixarTemplateGestao = async () => {
     try {
       const { data: itens } = await supabase.from('itens').select('*, familias(nome)').eq('organizacao_id', organizacao_id);
-      
-      const hoje = new Date();
-      const dataExcelSerial = 25569.0 + ((hoje.getTime() - (hoje.getTimezoneOffset() * 60000)) / (86400 * 1000));
 
       const rowsGestao = [["SKU", "DESCRIÇÃO", "FAMÍLIA", "LOCAL", "UNIDADE", "RESPONSÁVEL", "PREÇO_UNIT"]];
       
@@ -193,22 +189,12 @@ export default function HubAdministrativo() {
         ]);
       });
 
-      // AJUSTE: Adição da coluna DESCRIÇÃO
-      const rowsSaldo = [["DATA", "SKU", "DESCRIÇÃO", "VALOR_SISTEMA", "RESPONSÁVEL"]];
-      itens?.forEach(i => {
-        rowsSaldo.push([
-          { v: dataExcelSerial, t: 'n', z: 'dd/mm/yyyy' }, 
-          String(i.sku_codigo), 
-          i.descricao || "", // Adicionando a descrição dinâmica
-          "", 
-          i.responsavel || "" 
-        ]);
-      });
+      // NOVO: Aba SALDO_SISTEMA baixada em branco, apenas com cabeçalho
+      const rowsSaldo = [["DATA", "SKU", "DESCRIÇÃO", "VALOR_SISTEMA"]];
 
       const wb = XLSX.utils.book_new();
       
       const wsGestao = XLSX.utils.aoa_to_sheet(rowsGestao);
-      
       const rangeGestao = XLSX.utils.decode_range(wsGestao['!ref'] || 'A1:A1');
       for (let R = 1; R <= rangeGestao.e.r; ++R) { 
         const cellAddress = XLSX.utils.encode_cell({c: 0, r: R}); 
@@ -219,16 +205,7 @@ export default function HubAdministrativo() {
       wsGestao['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }, { wch: 15 }];
       
       const wsSaldo = XLSX.utils.aoa_to_sheet(rowsSaldo);
-      
-      const rangeSaldo = XLSX.utils.decode_range(wsSaldo['!ref'] || 'A1:A1');
-      for (let R = 1; R <= rangeSaldo.e.r; ++R) { 
-        const cellAddress = XLSX.utils.encode_cell({c: 1, r: R}); 
-        if (!wsSaldo[cellAddress]) continue;
-        wsSaldo[cellAddress].t = 's'; 
-        wsSaldo[cellAddress].z = '@'; 
-      }
-      // AJUSTE: Largura da nova coluna Descrição (wch: 45) no índice 2
-      wsSaldo['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 45 }, { wch: 20 }, { wch: 20 }];
+      wsSaldo['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 45 }, { wch: 20 }];
 
       XLSX.utils.book_append_sheet(wb, wsGestao, "GESTAO_MASTER");
       XLSX.utils.book_append_sheet(wb, wsSaldo, "SALDO_SISTEMA");
@@ -249,6 +226,7 @@ export default function HubAdministrativo() {
       const conteudo = await FileSystem.readAsStringAsync(res.assets[0].uri, { encoding: 'base64' });
       const wb = XLSX.read(conteudo, { type: 'base64' });
 
+      // --- IMPORTAÇÃO ABA GESTAO MASTER ---
       const sheetGestao = wb.Sheets["GESTAO_MASTER"];
       if (sheetGestao) {
         const dadosGestao = XLSX.utils.sheet_to_json(sheetGestao) as any[];
@@ -264,7 +242,7 @@ export default function HubAdministrativo() {
 
         const itensUpsert = dadosGestao.map(d => {
           return {
-            sku_codigo: String(d.SKU).trim(),
+            sku_codigo: String(d.SKU).trim().toUpperCase(),
             descricao: d.DESCRIÇÃO,
             familia_id: mapaFamilias.get(String(d.FAMÍLIA || '').trim()), 
             localizacao: String(d.LOCAL || '').trim(), 
@@ -275,17 +253,32 @@ export default function HubAdministrativo() {
             ativo: true
           };
         });
-        await supabase.from('itens').upsert(itensUpsert, { onConflict: 'sku_codigo' });
+        await supabase.from('itens').upsert(itensUpsert, { onConflict: 'organizacao_id,sku_codigo' }); // Ajustado para respeitar a trava composta
       }
 
+      // --- IMPORTAÇÃO ABA SALDO_SISTEMA COM VALIDAÇÃO ---
       const sheetSaldo = wb.Sheets["SALDO_SISTEMA"];
+      let skusRejeitados: string[] = [];
+
       if (sheetSaldo) {
         const dadosSaldo = XLSX.utils.sheet_to_json(sheetSaldo) as any[];
         const mapaAgrupado = new Map();
 
+        // Puxa a lista oficial de SKUs dessa organização para fazer o cruzamento
+        const { data: itensOficiais } = await supabase.from('itens').select('sku_codigo').eq('organizacao_id', organizacao_id);
+        const skusValidos = new Set(itensOficiais?.map(i => i.sku_codigo) || []);
+
         dadosSaldo
           .filter(d => d.SKU && d.VALOR_SISTEMA !== undefined && d.VALOR_SISTEMA !== "")
           .forEach(d => {
+            const sku = String(d.SKU).trim().toUpperCase();
+
+            // VALIDAÇÃO CHAVE: Se não existe no banco, vai para a lista de rejeitados
+            if (!skusValidos.has(sku)) {
+              if (!skusRejeitados.includes(sku)) skusRejeitados.push(sku);
+              return; 
+            }
+
             let dataRef = new Date().toISOString().split('T')[0];
             if (d.DATA) {
                dataRef = typeof d.DATA === 'number' 
@@ -293,7 +286,6 @@ export default function HubAdministrativo() {
                  : String(d.DATA).split(' ')[0];
             }
 
-            const sku = String(d.SKU).trim();
             const chaveUnica = `${sku}_${dataRef}`; 
             const valorAtual = parseNum(d.VALOR_SISTEMA);
 
@@ -320,7 +312,17 @@ export default function HubAdministrativo() {
         }
       }
 
-      Alert.alert("Sucesso", "Base e históricos sincronizados!");
+      // Mensagem Final Dinâmica
+      if (skusRejeitados.length > 0) {
+        const txtRejeitados = skusRejeitados.slice(0, 5).join(', ') + (skusRejeitados.length > 5 ? ' e outros...' : '');
+        Alert.alert(
+          "Sincronização Parcial", 
+          `Saldos e itens salvos!\n\nPorém, os seguintes itens não possuem cadastro e foram ignorados:\n${txtRejeitados}\n\nCadastre-os na Gestão Master e suba o saldo novamente.`
+        );
+      } else {
+        Alert.alert("Sucesso", "Base de itens e histórico de saldos sincronizados!");
+      }
+
     } catch (e: any) { Alert.alert("Erro", e.message); }
     finally { setCarregando(false); }
   };
@@ -340,7 +342,7 @@ export default function HubAdministrativo() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Gestão de Base & Dados</Text>
           <Text style={styles.desc}>Sincronize Itens e Saldos Diários usando as abas da mesma planilha.</Text>
-          <TouchableOpacity style={styles.btnSecondary} onPress={baixarTemplateGestao}><Ionicons name="download-outline" size={20} color={AZUL_TECH} /><Text style={styles.btnTextSecondary}>BAIXAR PLANILHA MESTRE</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnSecondary} onPress={baixarTemplateGestao}><Ionicons name="download-outline" size={22} color="#FFF" /><Text style={styles.btnTextSecondary}>BAIXAR PLANILHA MESTRE</Text></TouchableOpacity>
           <TouchableOpacity style={styles.btnPrimary} onPress={importarGestaoBase}>{carregando ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="sync-circle" size={22} color="#FFF" /><Text style={styles.btnText}>SINCRONIZAR BASE</Text></>}</TouchableOpacity>
         </View>
         {showInicio && <DateTimePicker value={dataInicio} mode="date" onChange={(e, d) => { setShowInicio(false); if(d) setDataInicio(d); }} />}
@@ -369,9 +371,9 @@ const styles = StyleSheet.create({
   btnTextExcel: { color: AZUL_TECH, fontWeight: 'bold' },
   desc: { fontSize: 12, color: '#64748B', marginBottom: 15 },
   btnPrimary: { backgroundColor: AZUL_TECH, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 14 },
-  btnSecondary: { borderWidth: 2, borderColor: AZUL_TECH, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 14, marginBottom: 10 },
-  btnText: { color: '#FFF', fontWeight: 'bold' },
-  btnTextSecondary: { color: AZUL_TECH, fontWeight: 'bold' },
+  btnSecondary: { backgroundColor: AZUL_TECH, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 14, marginBottom: 10 },
+  btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  btnTextSecondary: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
   guideSection: { paddingHorizontal: 10, marginTop: 5, marginBottom: 30 },
   guideTitle: { fontSize: 14, fontWeight: '900', color: '#475569', marginBottom: 12 },
   guideItem: { flexDirection: 'row', gap: 10, marginBottom: 15 },
