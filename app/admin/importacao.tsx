@@ -72,10 +72,21 @@ export default function HubAdministrativo() {
     try {
       const logoAsset = Asset.fromModule(require('../../assets/images/icon.png'));
       await logoAsset.downloadAsync();
-      const base64Logo = await FileSystem.readAsStringAsync(logoAsset.localUri!, { encoding: 'base64' });
+      
+      const logoCacheUri = `${FileSystem.cacheDirectory}logo_pdf.png`;
+      await FileSystem.downloadAsync(logoAsset.uri, logoCacheUri);
+      
+      const base64Logo = await FileSystem.readAsStringAsync(logoCacheUri, { encoding: 'base64' });
       const logoUri = `data:image/png;base64,${base64Logo}`;
       const itensBase = await buscarDadosProcessados();
       const datasPeriodo = gerarDatasNoPeriodo(dataInicio, dataFim);
+      
+      // FIX CIRÚRGICO: Função blindada para formatar números no padrão brasileiro (1.234,50)
+      const formatPTBR = (num: number, dec: number) => {
+        const partes = Number(num).toFixed(dec).split('.');
+        partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        return partes.join(',');
+      };
       
       let htmlPaginas = "";
       datasPeriodo.forEach((data) => {
@@ -92,10 +103,10 @@ export default function HubAdministrativo() {
             <tr>
               <td style="border-bottom: 1px solid #eee; padding: 12px 8px;"><b>${item.sku_codigo}</b></td>
               <td style="border-bottom: 1px solid #eee; padding: 12px 8px;">${item.descricao}</td>
-              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right">${fis.toFixed(1)}</td>
-              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right">${item.sistema.toFixed(1)}</td>
-              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right; font-weight:bold; color:${desv < 0 ? '#ef4444' : '#1e293b'}">${desv.toFixed(1)}</td>
-              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right; font-weight:bold; color:${imp < 0 ? '#ef4444' : '#059669'}">R$ ${imp.toFixed(2)}</td>
+              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right">${formatPTBR(fis, 1)}</td>
+              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right">${formatPTBR(item.sistema, 1)}</td>
+              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right; font-weight:bold; color:${desv < 0 ? '#ef4444' : '#1e293b'}">${formatPTBR(desv, 1)}</td>
+              <td style="border-bottom: 1px solid #eee; padding: 12px 8px; text-align:right; font-weight:bold; color:${imp < 0 ? '#ef4444' : '#059669'}">R$ ${formatPTBR(imp, 2)}</td>
             </tr>
           `;
         }).join('');
@@ -147,7 +158,8 @@ export default function HubAdministrativo() {
 
       const ws = XLSX.utils.aoa_to_sheet(rows);
       
-      ws['!views'] = [{ state: 'frozen', xSplit: 3, ySplit: 2 }];
+      ws['!views'] = [{ state: 'frozen', xSplit: 3, ySplit: 2, topLeftCell: 'D3', activePane: 'bottomRight' }];
+      
       const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
       ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: range.e.r, c: range.e.c } }) };
 
@@ -189,22 +201,32 @@ export default function HubAdministrativo() {
         ]);
       });
 
-      // NOVO: Aba SALDO_SISTEMA baixada em branco, apenas com cabeçalho
       const rowsSaldo = [["DATA", "SKU", "DESCRIÇÃO", "VALOR_SISTEMA"]];
 
       const wb = XLSX.utils.book_new();
       
       const wsGestao = XLSX.utils.aoa_to_sheet(rowsGestao);
       const rangeGestao = XLSX.utils.decode_range(wsGestao['!ref'] || 'A1:A1');
-      for (let R = 1; R <= rangeGestao.e.r; ++R) { 
+      
+      const maxLinhasGestao = Math.max(rangeGestao.e.r, 3000);
+      for (let R = 1; R <= maxLinhasGestao; ++R) { 
         const cellAddress = XLSX.utils.encode_cell({c: 0, r: R}); 
-        if (!wsGestao[cellAddress]) continue;
-        wsGestao[cellAddress].t = 's'; 
-        wsGestao[cellAddress].z = '@'; 
+        if (!wsGestao[cellAddress]) wsGestao[cellAddress] = { v: '', t: 's', z: '@' };
+        else { wsGestao[cellAddress].t = 's'; wsGestao[cellAddress].z = '@'; }
       }
+      wsGestao['!ref'] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 6, r: maxLinhasGestao } });
       wsGestao['!cols'] = [{ wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }, { wch: 15 }];
       
       const wsSaldo = XLSX.utils.aoa_to_sheet(rowsSaldo);
+      const rangeSaldo = XLSX.utils.decode_range(wsSaldo['!ref'] || 'A1:A1');
+      
+      const maxLinhasSaldo = Math.max(rangeSaldo.e.r, 3000);
+      for (let R = 1; R <= maxLinhasSaldo; ++R) { 
+        const cellAddress = XLSX.utils.encode_cell({c: 1, r: R}); // Coluna B
+        if (!wsSaldo[cellAddress]) wsSaldo[cellAddress] = { v: '', t: 's', z: '@' };
+        else { wsSaldo[cellAddress].t = 's'; wsSaldo[cellAddress].z = '@'; }
+      }
+      wsSaldo['!ref'] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 3, r: maxLinhasSaldo } });
       wsSaldo['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 45 }, { wch: 20 }];
 
       XLSX.utils.book_append_sheet(wb, wsGestao, "GESTAO_MASTER");
@@ -226,7 +248,6 @@ export default function HubAdministrativo() {
       const conteudo = await FileSystem.readAsStringAsync(res.assets[0].uri, { encoding: 'base64' });
       const wb = XLSX.read(conteudo, { type: 'base64' });
 
-      // --- IMPORTAÇÃO ABA GESTAO MASTER ---
       const sheetGestao = wb.Sheets["GESTAO_MASTER"];
       if (sheetGestao) {
         const dadosGestao = XLSX.utils.sheet_to_json(sheetGestao) as any[];
@@ -253,10 +274,9 @@ export default function HubAdministrativo() {
             ativo: true
           };
         });
-        await supabase.from('itens').upsert(itensUpsert, { onConflict: 'organizacao_id,sku_codigo' }); // Ajustado para respeitar a trava composta
+        await supabase.from('itens').upsert(itensUpsert, { onConflict: 'organizacao_id,sku_codigo' });
       }
 
-      // --- IMPORTAÇÃO ABA SALDO_SISTEMA COM VALIDAÇÃO ---
       const sheetSaldo = wb.Sheets["SALDO_SISTEMA"];
       let skusRejeitados: string[] = [];
 
@@ -264,7 +284,6 @@ export default function HubAdministrativo() {
         const dadosSaldo = XLSX.utils.sheet_to_json(sheetSaldo) as any[];
         const mapaAgrupado = new Map();
 
-        // Puxa a lista oficial de SKUs dessa organização para fazer o cruzamento
         const { data: itensOficiais } = await supabase.from('itens').select('sku_codigo').eq('organizacao_id', organizacao_id);
         const skusValidos = new Set(itensOficiais?.map(i => i.sku_codigo) || []);
 
@@ -273,7 +292,6 @@ export default function HubAdministrativo() {
           .forEach(d => {
             const sku = String(d.SKU).trim().toUpperCase();
 
-            // VALIDAÇÃO CHAVE: Se não existe no banco, vai para a lista de rejeitados
             if (!skusValidos.has(sku)) {
               if (!skusRejeitados.includes(sku)) skusRejeitados.push(sku);
               return; 
@@ -312,7 +330,6 @@ export default function HubAdministrativo() {
         }
       }
 
-      // Mensagem Final Dinâmica
       if (skusRejeitados.length > 0) {
         const txtRejeitados = skusRejeitados.slice(0, 5).join(', ') + (skusRejeitados.length > 5 ? ' e outros...' : '');
         Alert.alert(
