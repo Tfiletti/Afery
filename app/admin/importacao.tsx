@@ -5,7 +5,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy'; 
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
-import { Asset } from 'expo-asset';
 import XLSX from 'xlsx'; 
 import { supabase } from '../../src/supabase';
 import { useAuth } from '../../src/context/AuthContext';
@@ -70,18 +69,11 @@ export default function HubAdministrativo() {
   const exportarPDFMaster = async () => {
     setCarregando(true);
     try {
-      const logoAsset = Asset.fromModule(require('../../assets/images/icon.png'));
-      await logoAsset.downloadAsync();
+      const logoUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAACWCAMAAAAL34HQAAAAM1BMVEUeOor////8/P4jPo0fO4sPLYMXNIdqfbI7U5myu9fs7/VSaKWapsvZ3ut+j73GzeIMKoFHNxWaAAAEfklEQVR42u2a0bajIAxFBYJtr6X1/792EEVJgm1dY1w85Kx5mbljmxvC5iTSdSqVSqVSqVQqlUqlUqlUdQE0GVXfQ4tR3e8NxuXG53t0zSWrc3+mvXQ5fzPm2Vy6oH8b8+e6ttIFfjDWmpd3ja3hYwortFVckQ4myprBQ1t0iDHFP4+WVhH6SIdZLTHC+deUrCldz6aKPsxhTYxoJl0TSpeoWmIE+PcWVmin4AezyppbI+lKKN3CerdRXBGl1pQamohrpUNOVxNITUarlLUtILWgQ05XC0idjBauLfur7RJslZLRMjisHxkBndxiIzocYoTr3U0qLkaHn22X67vwlirCxWjRsL4zwnkXxFBSGC2sb4xw/h4flAqLoLRgxOfWzI2DFQVvqIX1xXYBjLcJu1JhMZRu6fpguwBijo1gtgqjRcMKH3Dl520iFRYxWm/kb/aQ6vr+kY2/TFjOP1Egww+2K0I0Z1goLILSWOVl/duq7YpgCJvBFgkL0WHyDfjvte9MuLLCzixyGpnSDmePI3XBlWhYiA6ploipp4xYcCXsY5HRSjuPmBxiuzKuZMNCdMhYL4ueMGLF1fbzP4FmhKxYMspkE5SM2HC1Efd+/tSJGq1U39hQlLarwNUadPw3aZQuiSEpXGunxFX+WS8QFW7D1jIiBZdtF8JVXnSJ6S8xWuumA1z0c2vmfImrtBtfXqbtqX19LdweIhhuBAwxuSJROdKGrUCnRT8hleHKDkKvFYAMabadTrZCtF0cV3exzuK+167ioo+MGCu4kmrDcAbQKUPOpPcluMrJ+tsdhVRGJeK4yv7kVS/4Wut4Ba42o4VYDh9W+BJc8WVizQTeDxhXo+TsCE+0AnydeAnjqooA1tdXm1pBXFUnWnxSyqapwriqGK1px8MXrAnjqvad8dTjBRMbHLqKgrjamXffRgf0HKeL+OyF361X6vmFtz11V9NCj9L3b5DPW3BUopu5q0prdsm8Gx10rBm85iUj8Hl32mcwx8WawWteMu4cLPF70/53ffeoz1IHYZTWj+GZ4awZrPrXC+fdqXP3tBk8MhEXmHdnf8CawcvemoVd52nn4XHV/tWnXVIoDYEdfeWqhosYgY1U9H8Q9tfUDgP6zwHEohrIuni3O5ePP0RBy11EwEYrzWPo0ApxDDUiYhcRahcLEtVNnfoXXUTArw6Xm221MzCfkZXsihutvLXAjWweszgKeqyLXESgdFhfzWF/ZQv/RV5riCAVdr8juVFbNIPZrdJDQcB2MaNVFPA2GcXNICl6CaTS+kXbPdIgzKcPbgbpQ6ff/yRGi8JxBli2XXspPt92UaNFywS6PgKMNYO0IB/n2i5itCod/gRW3gwyJ3QuI374+Jgv3gzyX+fkVQzfzzeoNIP0Cs6ptoug9IAbIK7jXEbQidUBLtKiP9F2sV/5QIWwm4Pn2a7kHQod2U+p6MtnT2vNWM966JMddWRnXamPYd2QDu0m9vRpbhB6j3Tsc//v6Y+f7JDgyqdVKpVKpVKpVCqVSqVSqVRt6B9OkCvhcSPYUAAAAABJRU5ErkJggg==";
       
-      const logoCacheUri = `${FileSystem.cacheDirectory}logo_pdf.png`;
-      await FileSystem.downloadAsync(logoAsset.uri, logoCacheUri);
-      
-      const base64Logo = await FileSystem.readAsStringAsync(logoCacheUri, { encoding: 'base64' });
-      const logoUri = `data:image/png;base64,${base64Logo}`;
       const itensBase = await buscarDadosProcessados();
       const datasPeriodo = gerarDatasNoPeriodo(dataInicio, dataFim);
       
-      // FIX CIRÚRGICO: Função blindada para formatar números no padrão brasileiro (1.234,50)
       const formatPTBR = (num: number, dec: number) => {
         const partes = Number(num).toFixed(dec).split('.');
         partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -354,7 +346,7 @@ export default function HubAdministrativo() {
           <Text style={styles.filterLabel}>Supervisor:</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 15}}>{['Todos', ...supervisores].map(s => (<TouchableOpacity key={s} onPress={() => setSupervisorAtivo(s)} style={[styles.supBtn, supervisorAtivo === s && styles.supBtnAtivo]}><Text style={[styles.supTxt, supervisorAtivo === s && {color:'#FFF'}]}>{s}</Text></TouchableOpacity>))}</ScrollView>
           <TouchableOpacity style={styles.btnPdf} onPress={exportarPDFMaster}><Ionicons name="document-text" size={20} color="#FFF" /><Text style={styles.btnTextPdf}>GERAR RELATÓRIO PDF</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnExcel} onPress={exportarExcelAuditoria}><Ionicons name="grid-outline" size={20} color={AZUL_TECH} /><Text style={styles.btnTextExcel}>BAIXAR EXCEL AUDITORIA</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnExcel} onPress={exportarExcelAuditoria}><Ionicons name="grid-outline" size={20} color={AZUL_TECH} /><Text style={styles.btnTextExcel}>BAIXAR RELATÓRIO .XLS</Text></TouchableOpacity>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Gestão de Base & Dados</Text>
@@ -362,6 +354,31 @@ export default function HubAdministrativo() {
           <TouchableOpacity style={styles.btnSecondary} onPress={baixarTemplateGestao}><Ionicons name="download-outline" size={22} color="#FFF" /><Text style={styles.btnTextSecondary}>BAIXAR PLANILHA MESTRE</Text></TouchableOpacity>
           <TouchableOpacity style={styles.btnPrimary} onPress={importarGestaoBase}>{carregando ? <ActivityIndicator color="#FFF" /> : <><Ionicons name="sync-circle" size={22} color="#FFF" /><Text style={styles.btnText}>SINCRONIZAR BASE</Text></>}</TouchableOpacity>
         </View>
+        
+        <View style={styles.guideSection}>
+          <Text style={styles.guideTitle}>Passo a Passo para Atualização</Text>
+          <View style={styles.guideItem}>
+            <Text style={styles.guideText}>
+              <Text style={{ fontWeight: 'bold' }}>1.</Text> Obtenha o modelo oficial clicando em "Baixar Planilha Mestre".
+            </Text>
+          </View>
+          <View style={styles.guideItem}>
+            <Text style={styles.guideText}>
+              <Text style={{ fontWeight: 'bold' }}>2.</Text> Alimente as abas correspondentes com os cadastros de itens ou saldos sistêmicos.
+            </Text>
+          </View>
+          <View style={styles.guideItem}>
+            <Text style={styles.guideText}>
+              <Text style={{ fontWeight: 'bold' }}>3.</Text> Salve o arquivo em seu dispositivo mantendo a estrutura e os nomes originais das abas.
+            </Text>
+          </View>
+          <View style={styles.guideItem}>
+            <Text style={styles.guideText}>
+              <Text style={{ fontWeight: 'bold' }}>4.</Text> Clique em "Sincronizar Base", selecione a planilha editada e atualize o banco de dados instantaneamente.
+            </Text>
+          </View>
+        </View>
+
         {showInicio && <DateTimePicker value={dataInicio} mode="date" onChange={(e, d) => { setShowInicio(false); if(d) setDataInicio(d); }} />}
         {showFim && <DateTimePicker value={dataFim} mode="date" onChange={(e, d) => { setShowFim(false); if(d) setDataFim(d); }} />}
       </ScrollView>
